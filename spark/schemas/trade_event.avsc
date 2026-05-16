@@ -1,0 +1,69 @@
+{
+  "namespace": "com.stock.trade_events.v1",
+  "type": "record",
+  "name": "TradeEvent",
+  "fields": [
+    {
+      "name": "schema_version",
+      "type": "string"
+    },
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "trade_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "event_time",
+      "type": "string"
+    },
+    {
+      "name": "stock_symbol",
+      "type": "string"
+    },
+    {
+      "name": "price",
+      "type": "double"
+    },
+    {
+      "name": "volume",
+      "type": "int"
+    },
+    {
+      "name": "buyer_id",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "seller_id",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "trade_type",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "exchange",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "order_type",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "execution_latency_ms",
+      "type": ["null", "int"],
+      "default": null
+    }
+  ]
+}
