@@ -5,7 +5,7 @@ SCHEMA_REGISTRY_URL = "http://localhost:8081"
 
 SUBJECT = "com.stock.trade_events.v1"
 
-with open("schemas/trade_event.avsc") as f:
+with open("spark/schemas/trade_event.avsc") as f:
     schema_str = f.read()
 
 payload = {

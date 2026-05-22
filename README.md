@@ -1,89 +1,55 @@
-# Real-Time Governed Streaming Lakehouse Pipeline
+# Governed & Corrective Streaming Lakehouse Platform
 
-## 📌 Project Overview
-
-This project is a real-time governed streaming data platform built using:
-
-* Apache Kafka
-* Apache Spark Structured Streaming
-* Schema Registry
-* Avro Serialization
-* Delta Lake
-* MinIO (S3-compatible object storage)
-* PostgreSQL
-* Docker + WSL2
-
-The system simulates a realistic stock market event platform capable of:
-
-* Ingesting multiple event streams
-* Dynamically resolving schemas
-* Governed Avro event serialization
-* Multi-topic stream processing
-* Bronze Lakehouse ingestion
-* Quarantine-based failure isolation
+A multi-version, production-grade real-time market data platform engineered with a strict tiered lakehouse architecture. The system scales from raw, schema-governed stream ingestion to incremental analytical calculation, supporting stateful stream processing, dynamic schema resolution, and point-in-time replayability.
 
 ---
 
-## 🧠 Architecture
+## 🚀 Architectural Evolution
 
 ```text
-                ┌────────────────────┐
-                │ Unified Avro       │
-                │ Market Producer    │
-                └─────────┬──────────┘
-                          │
-          ┌───────────────┴──────────────── biographies ┐
-          │                                             │
-          ▼                                             ▼
+====================================== PHASE 1: GOVERNED BRONZE INGESTION ======================================
 
-   Kafka Topic:                                  Kafka Topic:
-     price_ticks                                  trade_events
+  Unified Avro Market Producer ────> Kafka Topics (price_ticks, trade_events) ────> Confluent Schema Registry
+                                                                                            │
+                                                                                            ▼
+  Delta Bronze Lake (MinIO S3) <──── Namespace Routing <──── Unified Ingestion Spark Streaming Engine
+                │
+                └─> Per-Schema Quarantine Isolation Path
 
-          │                                             │
-          └───────────────┬─────────────────────────────┘
-                          ▼
+=================================== PHASE 2: CORRECTIVE ANALYTICAL SILVER LAYER ===================================
 
-              ┌─────────────────────┐
-              │ Schema Registry     │
-              │ Dynamic Resolution  │
-              └─────────┬───────────┘
-                        ▼
-
-          ┌────────────────────────────┐
-          │ Unified Spark Bronze Engine│
-          │                            │
-          │ - Dynamic topic discovery  │
-          │ - Schema introspection     │
-          │ - Avro decoding            │
-          │ - Delta Bronze writes      │
-          │ - Quarantine isolation     │
-          └─────────────┬──────────────┘
-                        ▼
-
-             ┌──────────────────┐
-             │ Delta Bronze Lake│
-             │      MinIO       │
-             └──────────────────┘
+  Delta Bronze Lake (MinIO S3 Source of Truth)
+                │
+                ▼
+  Incremental Silver Processors (Price & Trade Engines)
+                │
+                ├─► Validation (Schema conformance & payload sanity checks)
+                ├─► Deduplication (Deterministic business keys)
+                ├─► Watermarking & Stateless/Stateful Windows (Sliding OHLC, VWAP, Latency Profiles)
+                ▼
+  Optimized Delta Silver Storage ◄──── Delta MERGE Upserts & Automated Adaptive Optimization (Compaction + ZORDER)
+                │
+                └─► Point-In-Time Engine (Replay Suite for target timeframes / symbols) ──► Gold Ready Format
 
 ```
 
 ---
 
-## 🧱 Tech Stack
+## 🛠 Multi-Phase Unified Tech Stack
 
-| Component | Technology |
-| --- | --- |
-| **Streaming Broker** | Apache Kafka |
-| **Coordination** | ZooKeeper |
-| **Stream Processing** | Apache Spark Structured Streaming |
-| **Serialization** | Apache Avro |
-| **Schema Governance** | Confluent Schema Registry |
-| **Lakehouse Format** | Delta Lake |
-| **Object Storage** | MinIO |
-| **Database** | PostgreSQL |
-| **Containerization** | Docker |
-| **Linux Runtime** | WSL2 Ubuntu |
-| **Language** | Python |
+| Operational Layer | Technology Component | Profile & Functionality |
+| --- | --- | --- |
+| **Streaming Broker** | Apache Kafka | Multi-topic partition fabric (price_ticks, trade_events) |
+| **Coordination** | ZooKeeper | Broker state and topology management |
+| **Processing Engine** | Apache Spark | Structured Streaming & incremental DataFrame API execution |
+| **Serialization** | Apache Avro | Binary payload compaction with schema fingerprinting |
+| **Governance** | Confluent Schema Registry | Runtime schema validation, caching, and TTL handling |
+| **Lakehouse Format** | Delta Lake | ACID transactions, unified batch/streaming matrix, MERGE engine |
+| **Object Storage** | MinIO | S3 API-compatible infrastructure staging layer |
+| **Relational Storage** | PostgreSQL | Control plane, checkpoint tracking, and diagnostic metadata |
+| **Containerization** | Docker | Immutable architecture definitions (docker-compose) |
+| **Runtime OS** | WSL2 Ubuntu | Linux kernel execution layer |
+| **Implementation Core** | Python / PySpark | End-to-end pipeline scripting and test harnesses |
 
 ---
 
@@ -92,148 +58,62 @@ The system simulates a realistic stock market event platform capable of:
 ```text
 stock-pipeline/
 │
-├── docker-compose.yml
+├── docker-compose.yml              # Cluster definition (Kafka, Schema Registry, Spark, MinIO, Postgres)
 │
 ├── producer/
-│   ├── unified_avro_producer.py
+│   ├── unified_avro_producer.py    # Asynchronous, multi-threaded market trace simulation engine
 │   └── schemas/
-│       ├── trade_event.avsc
-│       └── price_tick.avsc
+│       ├── price_tick.avsc         # Avro schema mapping bid/ask/spread telemetry 
+│       └── trade_event.avsc        # Avro schema mapping execution parties and latency metrics
 │
 ├── spark/
-│   ├── unified_bronze_stream.py
-│   └── schemas/
-│       ├── trade_event.avsc
-│       └── price_tick.avsc
+│   ├── unified_bronze_stream.py    # Ingestion runtime handling multi-topic discovery & schema checking
+│   ├── silver_price_processor.py   # State-driven pipeline for sliding metrics, cleaning, and OHLC data
+│   ├── silver_trade_processor.py   # Analytical parser computing streaming metrics and VWAP trends
+│   ├── silver_replay.py            # Point-in-time state repair suite using Bronze historical data
+│   └── optimize_silver.py          # Maintenance script running compaction, file pruning, and ZORDERing
 │
 ├── scripts/
-│   ├── register_trade_schema.py
-│   └── register_price_schema.py
+│   ├── register_price_schema.py    # Control script publishing tick schemas to the registry
+│   └── register_trade_schema.py    # Control script publishing trade schemas to the registry
 │
-└── README.md
+└── README.md                       # Comprehensive platform documentation
 
 ```
 
 ---
 
-## 🚀 Event Streams
+# 🏆 Phase 1: Governed Bronze Streaming Lakehouse
 
-### 1️⃣ `price_ticks`
+Phase 1 establishes the ingestion fabric, focusing on zero data loss, strict schema compliance, and low-latency storage using an advanced unified ingestion design.
 
-High-frequency market price updates.
+### 📦 Kafka Ingestion Specifications
 
-#### Features
+* **price_ticks**: Market quote and liquidity update stream. Partition count: 6.
+* **trade_events**: Executed transaction verification data. Partition count: 3.
+* **dlq_events**: System dead-letter queue for dead poison-pill payloads. Partition count: 1.
 
-* Bid/ask spread simulation
-* Market status tracking
-* Exchange routing
-* Realistic drift simulation
+### 🧠 Strategic Engineering Decisions
 
-#### Example Event
-
-```json
-{
-  "schema_version": "v1",
-  "event_id": "uuid",
-  "event_type": "price_tick",
-  "event_time": "2026-05-17T12:00:00Z",
-  "stock_symbol": "AAPL",
-  "price": 212.44,
-  "volume": 1400,
-  "bid_price": 212.40,
-  "ask_price": 212.48,
-  "spread": 0.08,
-  "exchange": "NASDAQ",
-  "tick_type": "QUOTE_UPDATE",
-  "market_status": "OPEN"
-}
-
-```
-
-### 2️⃣ `trade_events`
-
-Executed trade events.
-
-#### Features
-
-* Buyer/seller tracking
-* Trade execution metadata
-* Order types
-* Execution latency simulation
-
-#### Example Event
-
-```json
-{
-  "schema_version": "v1",
-  "event_id": "uuid",
-  "trade_id": "uuid",
-  "event_type": "trade_executed",
-  "event_time": "2026-05-17T12:00:00Z",
-  "stock_symbol": "TSLA",
-  "price": 311.22,
-  "volume": 500,
-  "buyer_id": "BUYER_1001",
-  "seller_id": "SELLER_2001",
-  "trade_type": "BUY",
-  "exchange": "NASDAQ",
-  "order_type": "LIMIT",
-  "execution_latency_ms": 12
-}
-
-```
+* **Serialization**: **Apache Avro** to ensure payload compaction and wire efficiency.
+* **Governance**: **Schema Registry** validation prevents schema corruption down-stream.
+* **Streaming Strategy**: **Multi-topic combined stream parsing**. A single Spark worker reads directly from multiple topics, identifying schema attributes dynamically.
+* **Fault Isolation**: **Per-schema quarantine directories** separate invalid payloads without failing the stream processing tasks.
 
 ---
 
-## 🧠 Key Engineering Decisions
-
-| Area | Decision |
-| --- | --- |
-| **Serialization** | Avro |
-| **Governance** | Schema Registry |
-| **Streaming Format** | Multi-topic |
-| **Spark Architecture** | Unified ingestion engine |
-| **Schema Resolution** | Dynamic schema ID introspection |
-| **Failure Handling** | Per-schema quarantine |
-| **Storage Format** | Delta Lake |
-| **Routing Strategy** | Namespace + event_date |
-| **Schema Cache** | In-memory rich cache |
-| **Cache Refresh** | TTL refresh |
-| **Parsing Strategy** | Group-by-schema-id |
-| **Producer Model** | Async threaded dispatch |
-
----
-
-## 📦 Kafka Topics
-
-| Topic | Purpose | Partitions |
-| --- | --- | --- |
-| `price_ticks` | Market tick stream | 6 |
-| `trade_events` | Trade execution stream | 3 |
-| `dlq_events` | Dead-letter queue | 1 |
-
----
-
-## 🗄️ Bronze Lake Structure
+### 🗄️ Bronze Warehouse File Layout
 
 ```text
 bronze/
  ├── namespace=com.stock.price_ticks.v1/
- │      └── event_date=YYYY-MM-DD/
- │
+ │      └── event_date=YYYY-MM-DD/      # Dynamic batch ingestion split
+ │             └── *.parquet
  └── namespace=com.stock.trade_events.v1/
-        └── event_date=YYYY-MM-DD/
-
-```
-
----
-
-## ⚠️ Quarantine Structure
-
-Malformed or failed records are isolated seamlessly.
-
-```text
-quarantine/
+        └── event_date=YYYY-MM-DD/      # Partition isolated by system ingest date
+               └── *.parquet
+               
+quarantine/                             # Corrupted rows are isolated here
  ├── com.stock.price_ticks.v1/
  └── com.stock.trade_events.v1/
 
@@ -241,105 +121,22 @@ quarantine/
 
 ---
 
-## 🚀 Setup Instructions
-
-### 1️⃣ Start Docker Services
+### 🚀 Launching Phase 1
 
 ```bash
+# 1. Bring up the distributed container network
 docker compose up -d
 
-```
+# 2. Register schemas to verify your metadata contracts
+python scripts/register_price_schema.py
+python scripts/register_trade_schema.py
 
-### 2️⃣ Verify Containers
-
-```bash
-docker ps
-
-```
-
-**Expected Output Containers:**
-
-* `kafka`
-* `zookeeper`
-* `schema-registry`
-* `spark-master`
-* `spark-worker`
-* `postgres`
-* `minio`
-
-### 3️⃣ Create MinIO Bucket
-
-Enter MinIO container shell:
-
-```bash
-docker exec -it minio sh
+# 3. Boot the market event simulation process
+python producer/unified_avro_producer.py
 
 ```
 
-Configure local alias:
-
-```bash
-mc alias set myminio http://localhost:9000 admin admin123
-
-```
-
-Create the target storage bucket:
-
-```bash
-mc mb myminio/stock-data
-
-```
-
-### 4️⃣ Create Kafka Topics
-
-* **price_ticks**
-```bash
-docker exec -it kafka kafka-topics \
---create \
---topic price_ticks \
---bootstrap-server localhost:9092 \
---partitions 6 \
---replication-factor 1
-
-```
-
-
-* **trade_events**
-
-```bash
-    docker exec -it kafka kafka-topics \
-    --create \
-    --topic trade_events \
-    --bootstrap-server localhost:9092 \
-    --partitions 3 \
-    --replication-factor 1
-    ```
-
-### 5️⃣ Register Schemas
-*   **Register trade schema:**
-    ```bash
-    python register_trade_schema.py
-    ```
-*   **Register price tick schema:**
-    ```bash
-    python register_price_schema.py
-    ```
-
-### 6️⃣ Start Unified Producer
-```bash
-python unified_avro_producer.py
-
-```
-
-**Expected stdout:**
-
-```text
-📈 PRICE AAPL $211.22
-💰 TRADE TSLA BUY $310.45
-
-```
-
-### 7️⃣ Start Unified Bronze Engine
+Submit the streaming engine payload to the target Spark cluster:
 
 ```bash
 docker exec -it spark-master /spark/bin/spark-submit \
@@ -360,118 +157,119 @@ org.apache.hadoop:hadoop-aws:3.3.1 \
 
 ```
 
-### 🔍 Verify Bronze Data
+---
 
-```bash
-docker exec -it minio sh
-mc alias set myminio http://localhost:9000 admin admin123
-mc ls myminio/stock-data/bronze
+# 🥈 Phase 2: Corrective Analytical Silver Lakehouse
+
+Phase 2 reads raw events out of the **Bronze Delta** layer and runs transformations to produce highly polished, deduplicated, and windowed analytical data models.
+
+```text
+[Bronze Storage Table] ──► Read Stream ──► Window / Stateful Aggregations ──► Delta MERGE Upsert ──► [Optimized Silver Models]
+
+```
+
+### 📊 Engineered Metrics and Analytical Layouts
+
+#### Price Analytics
+
+* **OHLC Vector Model**: Calculated using dynamic sliding windows. Tracks open, high, low, and close values across custom spans.
+* **Spread Analytics**: Calculates structural liquidity profiles over rolling windows. Logs running indicators for average spread, maximum spread, and minimum spread.
+
+#### Trade Analytics
+
+* **VWAP Engine**: Evaluates volume-weighted average price patterns across continuous periods.
+
+$$\text{VWAP} = \frac{\sum (\text{Quantity} \times \text{Price})}{\sum \text{Quantity}}$$
+
+
+* **Imbalance Profiling**: Gauges real-time order book velocity mismatch by cross-checking buy volume against sell volume.
+* **Latency Analysis**: Calculates performance health checks for downstream execution pipelines, outputting continuous metrics for average latency, p95 latency, and maximum system latency.
+
+---
+
+### 📂 Silver Object Storage Topography
+
+```text
+silver/
+ ├── price_events/              # Deduped and validated atomic tick records
+ ├── price_ohlc_1m/             # 1-minute partitioned analytical rollups
+ ├── price_ohlc_5m/             # 5-minute analytical intervals
+ ├── price_ohlc_15m/            # 15-minute analytical intervals
+ ├── price_ohlc_1h/             # Hourly aggregated analytical rollups
+ ├── price_spread_metrics/      # Rolling spread liquidity indicators
+ ├── trade_events/              # Enriched transactional row records
+ ├── trade_vwap_metrics/        # Continuous Volume-Weighted Average Price metrics
+ └── trade_latency_metrics/     # Continuous execution performance markers
 
 ```
 
 ---
 
-## 🧠 Current System Capabilities
+### 🧠 V2 Engineering Decisions
 
-### ✅ Implemented
-
-* Real-time Kafka ingestion
-* Multi-topic streaming
-* Avro serialization
-* Schema Registry integration
-* Dynamic schema resolution
-* Unified Spark ingestion engine
-* Delta Bronze lakehouse
-* Namespace-based routing
-* Quarantine isolation
-* Async market simulation
-* Schema caching
-* Grouped schema parsing
-
-### 🚧 Planned Future Work
-
-* **Silver Layer**
-* Deduplication
-* Watermarking
-* Late event handling
-* Aggregations
-
-
-* **Gold Layer**
-* Dashboards
-* Analytics
-* Trading KPIs
-* Volatility metrics
-
-
-* **Advanced Features**
-* Replay engine
-* CDC Ingestion
-* ML anomaly detection
-* Data quality framework
-* Observability stack
-* Airflow orchestration
-* Kubernetes deployment
-
-
+* **Processing Engine Pattern**: Fully incremental **Delta-to-Delta structured streaming loops**.
+* **Late Ingestion Defenses**: Implemented a **1-minute watermark matrix** paired with an explicit **10-second aggregation trigger macro**, forcing late-arriving events into historical processing slots.
+* **Write Strategy**: Atomic **Delta Lake MERGE actions** to prevent row duplication on late arrivals or pipeline restarts.
+* **Layout Optimizations**: Systematic file compaction and **Z-Order indexing using compound keys (stock_symbol, event_time)** to keep lookup performance stable over long intervals.
 
 ---
 
-## ⚡ Performance Notes
+### 🚀 Running Phase 2 Engines
 
-### Local Development Profile
+To process the analytical data layers, execute the price and trade stream transformers:
 
-Recommended minimum configurations:
-
-* **WSL memory limit:** 8GB
-* **Spark driver memory:** 1G
-* **Executor memory:** 2G
-
----
-
-## 🛠 Useful Commands
-
-* **Shutdown WSL:**
 ```bash
-wsl --shutdown
+# Run the incremental streaming engines
+spark-submit spark/silver_price_processor.py
+spark-submit spark/silver_trade_processor.py
 
 ```
 
+#### Running a Historical State Repair Task
 
-* **Restart Docker Stack:**
+If you find data errors or need to backfill metrics for past dates, run the point-in-time replay suite:
+
 ```bash
-docker compose down -v
-docker compose up -d
+spark-submit spark/silver_replay.py --date 2026-05-22 --symbol AAPL
 
 ```
 
+#### Triggering Storage Optimization Maintenance
 
-* **Check Active Kafka Topics:**
+To perform file compaction, remove dead transaction records, and rewrite data vectors for better query performance, execute:
 
 ```bash
-    docker exec -it kafka kafka-topics \
-    --bootstrap-server localhost:9092 \
-    --list
-    ```
-
----
-
-## 📚 Concepts Covered
-This project demonstrates operational competency in:
-*   Event-driven architecture
-*   Schema governance
-*   Streaming ingestion
-*   Lakehouse architecture
-*   Dynamic schema resolution
-*   Structured streaming
-*   Delta Lake engineering
-*   Distributed systems design
-*   Failure isolation
-*   Real-time analytics foundations
-
----
-
-## 🎯 Final Goal
-Build a production-grade real-time market data platform capable of enterprise-grade reliability, low-latency processing, replayable pipelines, scalable ingestion, and governed event streaming.
+spark-submit spark/optimize_silver.py
 
 ```
+
+---
+
+## 📈 Functional Maturity Verification
+
+| Capability Module | Verification Status | Functional Scope |
+| --- | --- | --- |
+| **Multi-Topic Ingestion** | ✅ Implemented | Discovers dynamic messaging headers across multiple inputs |
+| **Contract Governance** | ✅ Implemented | Validates schemas at runtime via Schema Registry mappings |
+| **Dynamic Resolution** | ✅ Implemented | Automatically extracts schema IDs from binary data streams |
+| **ACID Lakehouse Storage** | ✅ Implemented | Guarantees data consistency through Delta transaction logs |
+| **Quarantine Isolation** | ✅ Implemented | Isolates malformed or corrupted rows to separate storage |
+| **Stream Deduplication** | ✅ Implemented | Uses unique business keys to guarantee exactly-once writing |
+| **Sliding Aggregations** | ✅ Implemented | Computes running real-time values like VWAP and OHLC bars |
+| **Incremental Replaying** | ✅ Implemented | Rebuilds state history correctly on demand from raw records |
+| **Adaptive Optimization** | ✅ Implemented | Combines small storage files and applies Z-Order indexing |
+
+---
+
+## 🔮 Next Phase: Gold OLAP Serving
+
+The next stage of development expands on the Silver layer to build a high-performance **Gold Analytical Mart Layer**:
+
+```text
+[Optimized Silver Delta Layer] ──► Dynamic CDC Export ──► ClickHouse OLAP Vector Clustered Tables ──► Real-Time Business Dashboard Visuals
+
+```
+
+* **ClickHouse Integration**: High-speed, low-latency analytical data delivery via localized engine arrays.
+* **Real-Time Dashboards**: Directly surfaces sub-second trading KPIs, volatility matrix grids, and performance trends.
+* **Kubernetes Orchestration**: Migrates all streaming engines and processing workers to a cloud-native architecture managed by Airflow.

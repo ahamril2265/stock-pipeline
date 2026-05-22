@@ -20,11 +20,11 @@ SCHEMA_REGISTRY_URL = "http://localhost:8081"
 # -----------------------------------
 
 price_tick_schema = open(
-    "./spark/schemas/price_tick.avsc"
+    "spark/schemas/price_tick.avsc"
 ).read()
 
 trade_event_schema = open(
-    "./spark/schemas/trade_event.avsc"
+    "spark/schemas/trade_event.avsc"
 ).read()
 
 # -----------------------------------
