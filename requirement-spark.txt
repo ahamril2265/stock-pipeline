@@ -1,0 +1,13 @@
+confluent-kafka==1.9.2
+
+fastavro==1.0.0
+
+requests==2.27.1
+
+python-dotenv==0.21.1
+
+schedule==1.2.2
+
+delta==0.4.2
+
+clickhouse_connect==0.6.23

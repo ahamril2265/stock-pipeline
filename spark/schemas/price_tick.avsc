@@ -1,0 +1,73 @@
+{
+  "namespace": "com.stock.price_ticks.v1",
+  "type": "record",
+  "name": "PriceTick",
+
+  "fields": [
+
+    {
+      "name": "schema_version",
+      "type": "string"
+    },
+
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+
+    {
+      "name": "event_time",
+      "type": "string"
+    },
+
+    {
+      "name": "stock_symbol",
+      "type": "string"
+    },
+
+    {
+      "name": "price",
+      "type": "double"
+    },
+
+    {
+      "name": "volume",
+      "type": "int"
+    },
+
+    {
+      "name": "bid_price",
+      "type": "double"
+    },
+
+    {
+      "name": "ask_price",
+      "type": "double"
+    },
+
+    {
+      "name": "spread",
+      "type": "double"
+    },
+
+    {
+      "name": "exchange",
+      "type": "string"
+    },
+
+    {
+      "name": "tick_type",
+      "type": "string"
+    },
+
+    {
+      "name": "market_status",
+      "type": "string"
+    }
+  ]
+}

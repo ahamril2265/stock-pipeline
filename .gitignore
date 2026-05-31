@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+
+# Environment
+.env
+
+# Spark
+spark-warehouse/
+metastore_db/
+
+# Delta
+_delta_log/
+
+# Kafka
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# MinIO Data
+minio-data/
+
+# Checkpoints
+checkpoints/
+
+# Build
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local configs
+*.local
