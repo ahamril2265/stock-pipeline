@@ -1,18 +1,21 @@
 FROM bde2020/spark-master:3.3.0-hadoop3.3
 
-# Alpine packages
 RUN apk add --no-cache \
     build-base \
     python3-dev \
-    musl-dev
+    musl-dev \
+    libffi-dev
 
-# Install wheel first
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
-# Install Python dependencies
-RUN python3 -m pip install \
-    requests==2.27.1 \
-    python-dotenv==0.21.1 \
-    schedule==1.2.2 \
-    fastavro==0.23.6 \
-    clickhouse-connect
+# Delta Lake JARs
+RUN mkdir -p /spark/jars && \
+    wget -P /spark/jars \
+    https://repo1.maven.org/maven2/io/delta/delta-core_2.12/2.1.0/delta-core_2.12-2.1.0.jar && \
+    wget -P /spark/jars \
+    https://repo1.maven.org/maven2/io/delta/delta-storage/2.1.0/delta-storage-2.1.0.jar
+
+COPY requirement-spark.txt /tmp/
+
+RUN python3 -m pip install --no-cache-dir \
+    -r /tmp/requirement-spark.txt
