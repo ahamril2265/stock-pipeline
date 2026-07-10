@@ -1,0 +1,25 @@
+FROM bde2020/spark-master:3.3.0-hadoop3.3
+
+USER root
+
+RUN apk add --no-cache \
+    build-base \
+    python3-dev \
+    musl-dev \
+    libffi-dev \
+    bash \
+    wget
+
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+COPY requirement-spark.txt /tmp/
+
+RUN python3 -m pip install --no-cache-dir \
+    -r /tmp/requirement-spark.txt
+
+# Delta Lake JARs
+RUN mkdir -p /spark/jars && \
+    wget -O /spark/jars/delta-core_2.12-2.1.0.jar \
+    https://repo1.maven.org/maven2/io/delta/delta-core_2.12/2.1.0/delta-core_2.12-2.1.0.jar && \
+    wget -O /spark/jars/delta-storage-2.1.0.jar \
+    https://repo1.maven.org/maven2/io/delta/delta-storage/2.1.0/delta-storage-2.1.0.jar

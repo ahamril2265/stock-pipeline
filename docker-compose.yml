@@ -45,9 +45,10 @@ services:
   spark-master:
      build:
       context: .
-      dockerfile: Dockerfile.spark
+      dockerfile: Dockerfile.spark-master
      container_name: spark-master
      environment:
+
        - INIT_DAEMON_STEP=setup_spark
      ports:
        - "8080:8080"
@@ -59,12 +60,14 @@ services:
   spark-worker:
     build:
       context: .
-      dockerfile: Dockerfile.spark
+      dockerfile: Dockerfile.spark-worker
     container_name: spark-worker
     environment:
       - SPARK_MASTER=spark://spark-master:7077
     depends_on:
       - spark-master
+    mem_limit: 3g
+    cpus: 2
     volumes:
       - ./spark:/opt/spark/work-dir
       - ./spark/conf/spark-defaults.conf:/spark/conf/spark-defaults.conf
@@ -207,6 +210,68 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - /var/run/docker.sock:/var/run/docker.sock
   
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile.producer
+
+    container_name: producer
+
+    restart: unless-stopped
+
+    depends_on:
+      kafka:
+        condition: service_started
+      schema-registry:
+        condition: service_started
+
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+    volumes:
+      - ./:/app
+
+    working_dir: /app
+
+    command: python producer/unified_avro_producer.py
+
+  bronze-stream:
+    image: stock-pipeline-spark-master
+
+    container_name: bronze-stream
+
+    depends_on:
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+
+    restart: unless-stopped
+
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
+
+    volumes:
+      - ./spark:/opt/spark/work-dir
+      - ./spark/conf:/spark/conf
+      - ./scripts:/scripts
+
+    command: ["/bin/bash", "/scripts/start_bronze.sh"]
+
+  dashboard:
+    build:
+      context: ./dashboard
+
+    container_name: dashboard
+
+    depends_on:
+      - clickhouse
+
+    ports:
+      - "8501:8501"
+
+    restart: unless-stopped
+
 volumes:
    minio_data:
    postgres_data:

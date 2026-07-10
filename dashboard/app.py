@@ -1,75 +1,109 @@
-from dash import Dash, html
-from db import get_market_kpis
+import streamlit as st
 
-app = Dash(__name__)
+# --------------------------------------------------
+# Page Config (MUST BE FIRST STREAMLIT COMMAND)
+# --------------------------------------------------
 
+st.set_page_config(
+    page_title="Stock Analytics Dashboard",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def build_dashboard():
+# --------------------------------------------------
+# Imports
+# --------------------------------------------------
 
-    try:
+from components.sidebar import render as sidebar
+from components.header import render as header
+from components.status_bar import render as status_bar
+from components.footer import render as footer
 
-        df = get_market_kpis()
-
-        if df.empty:
-
-            return html.Div([
-                html.H1("Stock Analytics Dashboard"),
-                html.H3("No KPI data found")
-            ])
-
-        row = df.iloc[0]
-
-        return html.Div([
-
-            html.H1(
-                "📈 Real-Time Stock Analytics Dashboard"
-            ),
-
-            html.Hr(),
-
-            html.H2(
-                f"Market Volume: {int(row['total_market_volume']):,}"
-            ),
-
-            html.H2(
-                f"Market VWAP: {round(row['market_vwap'], 2)}"
-            ),
-
-            html.H2(
-                f"Average Latency: {round(row['avg_market_latency'], 2)} ms"
-            ),
-
-            html.H2(
-                f"Active Symbols: {row['active_symbols']}"
-            ),
-
-            html.H2(
-                f"Buy Volume: {int(row['total_buy_volume']):,}"
-            ),
-
-            html.H2(
-                f"Sell Volume: {int(row['total_sell_volume']):,}"
-            )
-
-        ])
-
-    except Exception as e:
-
-        return html.Div([
-
-            html.H1("Dashboard Error"),
-
-            html.Pre(str(e))
-        ])
+from views.market_overview import render as overview
+from views.top_symbols import render as top_symbols
+from views.symbol_analysis import render as symbol_analysis
+from views.ohlc import render as ohlc
+from views.pipeline_health import render as pipeline_health
+from formatter import (
+    number,
+    price,
+    latency,
+    percent
+)
+from views.spark_monitor import render as spark_monitor
+from views.airflow_monitor import render as airflow_monitor
+from views.kafka_monitor import render as kafka_monitor
+from views.storage_monitor import render as storage_monitor
+from views.logs_monitor import render as logs_monitor
+from views.architecture import render as architecture
+from views.performance_benchmark import render as performance_benchmark
 
 
-app.layout = build_dashboard()
+# --------------------------------------------------
+# Load CSS
+# --------------------------------------------------
+
+def load_css():
+
+    with open("assets/style.css") as css:
+
+        st.markdown(
+            f"<style>{css.read()}</style>",
+            unsafe_allow_html=True
+        )
 
 
-if __name__ == "__main__":
+# --------------------------------------------------
+# App
+# --------------------------------------------------
 
-    app.run(
-        host="0.0.0.0",
-        port=8050,
-        debug=True
-    )
+load_css()
+
+page = sidebar()
+
+header()
+
+status_bar()
+
+if page == "📈 Market Overview":
+    overview()
+
+elif page == "🏆 Top Symbols":
+    top_symbols()
+
+elif page == "🔍 Symbol Analysis":
+    symbol_analysis()
+
+elif page == "🕯 OHLC":
+    ohlc()
+
+elif page == "⚙ Pipeline Health":
+    pipeline_health()
+
+elif page == "⚡ Spark Cluster":
+    spark_monitor()
+
+elif page == "🌬 Airflow Monitor":
+    airflow_monitor()
+
+elif page == "📨 Kafka Cluster":
+    kafka_monitor()
+
+elif page == "💾 Storage Monitor":
+
+    storage_monitor()
+
+elif page == "📜 Live Logs":
+
+    logs_monitor()
+
+elif page == "🏗 Architecture":
+
+    architecture()
+
+elif page == "📊 Performance Benchmark":
+
+    performance_benchmark()
+
+footer()

@@ -1,350 +1,187 @@
-# 🚀 Real-Time Governed Streaming Lakehouse Pipeline
+# 📈 Real-Time Stock Market Analytics Pipeline
 
-## 📌 Project Overview
+An end-to-end real-time stock market data engineering platform built using Kafka, Spark, Delta Lake, MinIO, ClickHouse, and Airflow.
 
-This project implements a complete real-time data engineering platform for stock market analytics using modern lakehouse architecture principles.
+The project simulates real-time stock market events, processes them through a Bronze-Silver-Gold architecture, and produces analytical datasets for reporting and visualization.
 
-The platform ingests simulated market events through Apache Kafka, validates schemas using Schema Registry and Avro serialization, processes streaming data using Apache Spark Structured Streaming, stores data in Delta Lake on MinIO object storage, and serves curated analytical datasets through ClickHouse.
+---
 
-The project follows a Medallion Architecture:
+## 🚀 Project Overview
+
+This project demonstrates a modern Data Engineering architecture capable of:
+
+* Real-time event ingestion
+* Streaming and batch processing
+* Delta Lake storage
+* Data quality and aggregation layers
+* Analytical serving through ClickHouse
+* Workflow orchestration with Airflow
+
+---
+
+## 🏗️ Architecture
 
 ```text
-Kafka
-  ↓
-Bronze Layer (Raw Delta Lake)
-  ↓
-Silver Layer (Business Analytics)
-  ↓
-Gold Layer (Serving Layer)
-  ↓
-Dashboard (Upcoming)
+Stock Event Producers
+        │
+        ▼
+      Kafka
+        │
+        ▼
+  Bronze Layer
+ (Raw Delta Tables)
+        │
+        ▼
+  Silver Layer
+ (Business Metrics)
+        │
+        ▼
+   Gold Layer
+(Analytics Tables)
+        │
+        ▼
+   ClickHouse
+        │
+        ▼
+ Dashboard / BI
 ```
 
 ---
 
-# 🏗 Architecture
+## 🛠️ Technology Stack
+
+| Component              | Technology                |
+| ---------------------- | ------------------------- |
+| Language               | Python                    |
+| Streaming              | Apache Kafka              |
+| Schema Management      | Confluent Schema Registry |
+| Processing             | Apache Spark              |
+| Storage                | Delta Lake                |
+| Object Storage         | MinIO                     |
+| Analytics Database     | ClickHouse                |
+| Workflow Orchestration | Apache Airflow            |
+| Containerization       | Docker & Docker Compose   |
+
+---
+
+## 📂 Project Structure
 
 ```text
-+--------------------+
-| Avro Producers     |
-|--------------------|
-| Trade Events       |
-| Price Ticks        |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Apache Kafka       |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Schema Registry    |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Spark Structured   |
-| Streaming          |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Delta Lake         |
-| Bronze Layer       |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Silver Layer       |
-| Analytics          |
-+---------+----------+
-          |
-          v
-+--------------------+
-| ClickHouse         |
-| Gold Layer         |
-+---------+----------+
-          |
-          v
-+--------------------+
-| Dashboard          |
-| (Next Phase)       |
-+--------------------+
+stock-pipeline/
+│
+├── airflow/
+│   ├── dags/
+│   ├── logs/
+│   └── plugins/
+│
+├── clickhouse/
+│   └── init/
+│
+├── dashboard/
+│
+├── producers/
+│   ├── stock_price_producer.py
+│   └── stock_trade_producer.py
+│
+├── schemas/
+│
+├── spark/
+│   ├── bronze/
+│   ├── silver/
+│   ├── gold/
+│   └── conf/
+│
+├── scripts/
+│   ├── run_pipeline.sh
+│   ├── run_silver.sh
+│   └── run_gold.sh
+│
+├── Dockerfile.spark
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
-# 🛠 Technology Stack
+# Bronze Layer
 
-## Streaming
+The Bronze layer stores raw events exactly as received from Kafka.
 
-* Apache Kafka
-* Apache ZooKeeper
-* Confluent Schema Registry
-* Avro Serialization
+### Datasets
 
-## Processing
+* Price Events
+* Trade Events
 
-* Apache Spark Structured Streaming
-* Delta Lake
+### Storage
 
-## Storage
+```text
+MinIO
+└── Delta Tables
+```
 
-* MinIO (S3 Compatible Object Storage)
+### Purpose
 
-## Analytics
-
-* ClickHouse
-
-## Infrastructure
-
-* Docker
-* Docker Compose
-* WSL2 Ubuntu
-
-## Language
-
-* Python 3.12
+* Preserve source data
+* Enable replayability
+* Support downstream transformations
 
 ---
 
-# 📂 Data Model
+# Silver Layer
 
-## Trade Event Schema
+The Silver layer performs business-level transformations and metric calculations.
 
-```json
-{
-  "trade_id": "...",
-  "stock_symbol": "...",
-  "trade_price": 0,
-  "trade_quantity": 0,
-  "trade_type": "BUY/SELL",
-  "event_timestamp": "...",
-  "exchange_timestamp": "..."
-}
-```
+### Silver Datasets
 
-## Price Tick Schema
+#### Price Events
 
-```json
-{
-  "stock_symbol": "...",
-  "price": 0,
-  "spread": 0,
-  "volume": 0,
-  "event_timestamp": "..."
-}
-```
+Processed stock price stream.
 
----
+#### Trade VWAP Metrics
 
-# 🥉 Bronze Layer
-
-## Objective
-
-Store raw immutable events exactly as received from Kafka.
-
-## Storage Location
+Calculates:
 
 ```text
-s3://stock-data/bronze/
+VWAP = Σ(price × quantity)
+       -------------------
+         Σ(quantity)
 ```
 
-## Tables
+#### Trade Volume Metrics
 
-### Trade Events
-
-```text
-bronze/namespace=com.stock.trade_events.v1
-```
-
-### Price Ticks
-
-```text
-bronze/namespace=com.stock.price_ticks.v1
-```
-
-## Characteristics
-
-* Raw data
-* Partitioned by event date
-* Delta Lake format
-* Replayable source of truth
-
----
-
-# 🥈 Silver Layer
-
-## Objective
-
-Transform raw events into business-ready analytical datasets.
-
----
-
-## Trade Events
-
-```text
-silver/trade_events
-```
-
-### Enhancements
-
-* Schema validation
-* Data cleansing
-* Event standardization
-
----
-
-## Price Events
-
-```text
-silver/price_events
-```
-
-### Enhancements
-
-* Schema validation
-* Data cleansing
-* Event standardization
-
----
-
-## VWAP Metrics
-
-```text
-silver/trade_vwap_metrics
-```
-
-Metrics:
-
-* VWAP
-* Total Volume
-
----
-
-## Volume Metrics
-
-```text
-silver/trade_volume_metrics
-```
-
-Metrics:
+Computes:
 
 * Buy Volume
 * Sell Volume
-
----
-
-## Latency Metrics
-
-```text
-silver/trade_latency_metrics
-```
-
-Metrics:
-
-* Average Latency
-* Maximum Latency
-* P95 Latency
-
----
-
-## OHLC Metrics
-
-```text
-silver/price_ohlc_1m
-```
-
-Metrics:
-
-* Open
-* High
-* Low
-* Close
 * Total Volume
 
-Window:
+#### Trade Latency Metrics
 
-```text
-1 Minute Tumbling Window
-```
+Computes average processing latency.
 
 ---
 
-# 🔄 Replay Framework
+# Gold Layer
 
-Implemented:
+The Gold layer contains business-ready analytical datasets.
 
-```text
-silver_replay.py
-```
+## gold_symbol_summary
 
-Capabilities:
-
-* Rebuild Silver tables
-* Recover failed partitions
-* Backfill historical data
-
----
-
-# ⚡ Optimization Framework
-
-Implemented:
-
-```text
-optimize_silver.py
-```
-
-Capabilities:
-
-* Delta Lake maintenance
-* File compaction
-* Storage optimization
-
----
-
-# 🥇 Gold Layer
-
-Gold datasets are served through ClickHouse.
-
----
-
-## Gold Symbol Summary
-
-Table:
-
-```text
-gold_symbol_summary
-```
-
-Metrics:
+Per-stock analytical summary:
 
 * Latest Price
-* VWAP
 * Daily Volume
+* VWAP
 * Average Spread
 * Average Latency
 * Buy Volume
 * Sell Volume
 
-Purpose:
-
-```text
-Per-symbol analytical summary
-```
-
 ---
 
-## Gold Market KPIs
+## gold_market_kpis
 
-Table:
-
-```text
-gold_market_kpis
-```
-
-Metrics:
+Market-wide KPIs:
 
 * Total Market Volume
 * Total Buy Volume
@@ -354,150 +191,202 @@ Metrics:
 * Average Market Latency
 * Active Symbols
 
-Purpose:
+---
 
-```text
-Market-wide executive dashboard metrics
-```
+## gold_top_symbols
+
+Top traded symbols ranked by volume.
 
 ---
 
-## Gold Top Symbols
+## gold_ohlc
 
-Table:
-
-```text
-gold_top_symbols
-```
-
-Metrics:
-
-* Volume Ranking
-* VWAP
-* Latest Price
-* Buy/Sell Volume
-
-Purpose:
-
-```text
-Leaderboard and ranking analytics
-```
-
----
-
-## Gold OHLC
-
-Table:
-
-```text
-gold_ohlc
-```
-
-Metrics:
+OHLC candlestick dataset:
 
 * Open
 * High
 * Low
 * Close
-* Total Volume
+* Volume
 
-Purpose:
+---
+
+# Workflow Orchestration
+
+Apache Airflow orchestrates the complete pipeline.
+
+### DAG Flow
 
 ```text
-Charting and visualization layer
+silver_trade
+        │
+        ▼
+silver_price
+        │
+        ▼
+gold_symbol_summary
+        │
+        ▼
+gold_market_kpis
+        │
+        ▼
+gold_top_symbols
+        │
+        ▼
+gold_ohlc
+```
+
+### Features
+
+* Scheduled execution
+* Dependency management
+* Retry handling
+* Centralized monitoring
+
+---
+
+# Infrastructure Components
+
+## Kafka
+
+Used for real-time event streaming.
+
+Topics:
+
+```text
+stock_prices
+stock_trades
 ```
 
 ---
 
-# 📊 Current Project Status
+## Schema Registry
 
-## Completed
-
-✅ Kafka Infrastructure
-
-✅ Schema Registry
-
-✅ Avro Producers
-
-✅ Trade Event Streaming
-
-✅ Price Tick Streaming
-
-✅ Bronze Delta Lake
-
-✅ Silver Analytics Layer
-
-✅ Replay Framework
-
-✅ Optimization Framework
-
-✅ ClickHouse Integration
-
-✅ Gold Layer
+Manages Avro schemas and ensures schema compatibility.
 
 ---
 
-# 🚧 Next Phase
+## MinIO
 
-## Dashboard Layer
-
-Planned Features:
-
-### Overview
-
-* Market KPIs
-* System Health
-
-### Top Symbols
-
-* Volume Rankings
-* VWAP Rankings
-
-### Symbol Analysis
-
-* Candlestick Charts
-* OHLC Visualization
-* Volume Trends
-
-### Monitoring
-
-* Pipeline Health
-* Processing Metrics
-* Streaming Statistics
+S3-compatible object storage used for Delta Lake datasets.
 
 ---
 
-# 🎯 Learning Outcomes
+## Spark
 
-This project demonstrates:
+Responsible for:
 
-* Real-Time Streaming Architecture
-* Event-Driven Data Engineering
-* Schema Governance
-* Structured Streaming
-* Delta Lake Operations
-* Medallion Architecture
-* S3-Based Data Lake Design
-* Analytical Data Modeling
-* ClickHouse Analytics
-* Failure Recovery Strategies
-* Production-Oriented Data Pipelines
+* Streaming ingestion
+* Silver transformations
+* Gold aggregations
 
 ---
 
-# Version
+## ClickHouse
 
-Current Version:
+Serves analytical datasets for dashboards and reporting.
+
+Tables:
 
 ```text
-V3.0
+gold_symbol_summary
+gold_market_kpis
+gold_top_symbols
+gold_ohlc
 ```
 
-Status:
+---
+
+# Running the Project
+
+## Start Infrastructure
+
+```bash
+docker compose up -d
+```
+
+---
+
+## Run Producers
+
+```bash
+python producers/stock_price_producer.py
+```
+
+```bash
+python producers/stock_trade_producer.py
+```
+
+---
+
+## Execute Pipeline
+
+```bash
+bash scripts/run_pipeline.sh
+```
+
+---
+
+## Access Services
+
+### Airflow
 
 ```text
-Bronze ✅
-Silver ✅
-Gold ✅
-Dashboard 🚧 Next
+http://localhost:8088
 ```
+
+### Spark UI
+
+```text
+http://localhost:8080
+```
+
+### MinIO Console
+
+```text
+http://localhost:9001
+```
+
+### ClickHouse
+
+```text
+http://localhost:8123
+```
+
+---
+
+# Key Engineering Concepts Demonstrated
+
+* Real-Time Data Streaming
+* Event-Driven Architecture
+* Bronze-Silver-Gold Design Pattern
+* Delta Lake Storage
+* Data Aggregation Pipelines
+* Workflow Orchestration
+* Containerized Data Platforms
+* Analytical Data Serving
+
+---
+
+# Future Enhancements
+
+* Interactive Dashboard (Dash/Plotly)
+* Monitoring & Alerting
+* Data Quality Validation
+* CI/CD Pipeline
+* Kubernetes Deployment
+* Prometheus & Grafana Integration
+* Real Market Data Integration
+
+---
+
+# Author
+
+**Ahamed Rilwan Mohaaideen**
+
+* LinkedIn: https://www.linkedin.com/in/ahamedrilwan
+* GitHub: https://github.com/ahamril2265
+
+---
+
+⭐ If you found this project interesting, consider giving it a star.

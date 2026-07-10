@@ -7,6 +7,25 @@ from fastavro import schemaless_reader
 from pyspark.sql.types import *
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
+import signal
+
+running = True
+query = None
+
+#-----------------------------------
+# Graceful Shutdown
+#-----------------------------------
+
+def shutdown(signum, frame):
+    global running, query
+
+    print("\n🛑 Shutdown signal received...")
+
+    running = False
+
+    if query is not None:
+        print("Stopping streaming query...")
+        query.stop()
 
 # -----------------------------------
 # Spark Session
@@ -136,6 +155,9 @@ def extract_schema_id(binary_data):
 
 def process_batch(batch_df, batch_id):
 
+    if batch_df.isEmpty():
+        return
+    
     rows = batch_df.collect()
 
     print(f"🚀 Processing batch {batch_id}")
@@ -145,7 +167,7 @@ def process_batch(batch_df, batch_id):
     # -----------------------------------
     # Group by Schema ID
     # -----------------------------------
-
+    
     for row in rows:
 
         try:
@@ -321,4 +343,15 @@ query = stream_df.writeStream \
     .outputMode("append") \
     .start()
 
-query.awaitTermination()
+try:
+
+    while running:
+        query.awaitTermination(1)
+
+finally:
+
+    print("Stopping Spark Session...")
+
+    spark.stop()
+
+    print("✅ Spark stopped gracefully.")

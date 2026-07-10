@@ -1,0 +1,83 @@
+/* ---------- Hide Streamlit ---------- */
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+header {
+    visibility: hidden;
+}
+
+/* ---------- Main ---------- */
+
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    max-width: 96%;
+}
+
+/* ---------- Header ---------- */
+
+.dashboard-title {
+
+    font-size: 42px;
+
+    font-weight: 700;
+
+    color: white;
+
+}
+
+.dashboard-subtitle {
+
+    color: #9CA3AF;
+
+    font-size: 16px;
+
+}
+
+/* ---------- Cards ---------- */
+
+.metric-card {
+
+    background: #161B22;
+
+    border-radius: 14px;
+
+    padding: 20px;
+
+    border: 1px solid #2B3137;
+
+    transition: .25s;
+
+}
+
+.metric-card:hover {
+
+    border-color: #00E676;
+
+    transform: translateY(-3px);
+
+}
+
+/* ---------- Status ---------- */
+
+.live-status {
+
+    color: #00E676;
+
+    font-weight: bold;
+
+}
+
+/* ---------- Divider ---------- */
+
+hr {
+
+    border-color: #2B3137;
+
+}
