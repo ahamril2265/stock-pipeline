@@ -1,310 +1,114 @@
 import streamlit as st
-import pandas as pd
+from health import all_services, pipeline_summary
+from components.cards import section_header, status_badge
 
-from components.architecture_flow import render as architecture_flow
+PIPELINE_STAGES = [
+    ("🐍", "Producer",    "Python + Avro"),
+    ("📨", "Kafka",       "Confluent 7.5"),
+    ("⚡", "Spark",       "Structured Streaming"),
+    ("🗻", "Bronze",      "MinIO Delta Lake"),
+    ("🥈", "Silver",      "Validated Data"),
+    ("🥇", "Gold",        "ClickHouse Aggregated"),
+    ("📊", "Dashboard",   "Streamlit + Plotly"),
+]
 
-from db import (
-    get_market_kpis,
-    get_symbol_summary,
-    get_top_symbols,
-    get_ohlc
-)
-
-from health import pipeline_summary
-from components.cards import metric_card
-
+STACK_INVENTORY = [
+    ("Kafka",           "confluentinc/cp-kafka:7.5.0",              "9092",  "Message broker"),
+    ("Zookeeper",       "confluentinc/cp-zookeeper:7.5.0",          "2181",  "Kafka coordination"),
+    ("Schema Registry", "confluentinc/cp-schema-registry:7.5.0",    "8081",  "Avro schema store"),
+    ("Spark Master",    "custom (Dockerfile.spark-master)",          "8080",  "Cluster manager"),
+    ("Spark Worker",    "custom (Dockerfile.spark-worker)",          "-",     "Processing node"),
+    ("ClickHouse",      "clickhouse/clickhouse-server:latest",       "8123",  "Analytical DB"),
+    ("PostgreSQL",      "postgres:15",                               "5432",  "Metadata store"),
+    ("MinIO",           "minio/minio",                               "9000",  "Object storage (S3)"),
+    ("Airflow",         "custom (airflow/Dockerfile)",               "8080",  "Workflow orchestrator"),
+    ("Producer",        "custom (Dockerfile.producer)",              "-",     "Market event emitter"),
+    ("Dashboard",       "custom (dashboard/Dockerfile)",             "8501",  "Streamlit UI"),
+]
 
 def render():
+    st.markdown('<div class="dashboard-title">🏗 Architecture</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-subtitle">Pipeline Overview & Stack Inventory</div>', unsafe_allow_html=True)
 
-    st.title("🏗 Pipeline Architecture")
-
-    st.caption(
-        "End-to-End Real-Time Stock Market Data Pipeline"
-    )
-
-    # =====================================================
-    # Load Data
-    # =====================================================
-
-    market = get_market_kpis()
-    summary = get_symbol_summary()
-    top = get_top_symbols()
-    ohlc = get_ohlc()
-
-    pipeline = pipeline_summary()
-
-    services = pipeline["services"]
-
-    resources = pipeline["resources"]
-
-    # =====================================================
-    # Live KPIs
-    # =====================================================
-
-    st.subheader("🚀 Live Pipeline Overview")
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-
-    with c1:
-
-        metric_card(
-            "Trades",
-            len(ohlc),
-            "📈"
-        )
-
-    with c2:
-
-        metric_card(
-            "Symbols",
-            len(summary),
-            "📊"
-        )
-
-    with c3:
-
-        metric_card(
-            "Gold Tables",
-            len(market),
-            "🥇"
-        )
-
-    with c4:
-
-        metric_card(
-            "Top Symbols",
-            len(top),
-            "🏆"
-        )
-
-    with c5:
-
-        healthy = sum(services.values())
-
-        metric_card(
-            "Services",
-            f"{healthy}/{len(services)}",
-            "🟢"
-        )
+    try:
+        services = all_services()
+        pipeline = pipeline_summary()
+    except Exception:
+        services = {}
+        pipeline = {"healthy": 0, "total": 0, "health_percentage": 0}
 
     st.divider()
 
-    # =====================================================
-    # Pipeline Diagram
-    # =====================================================
+    # ── Pipeline Flow (using st.columns for proper horizontal layout) ─────────
+    section_header("🔄 Data Pipeline Flow")
 
-    architecture_flow()
-
-    st.divider()
-
-    # =====================================================
-    # Infrastructure Resources
-    # =====================================================
-
-    st.subheader("💻 Infrastructure Resources")
-
-    r1, r2, r3 = st.columns(3)
-
-    with r1:
-
-        st.metric(
-            "CPU Usage",
-            f"{resources['cpu']}%"
-        )
-
-        st.progress(resources["cpu"] / 100)
-
-    with r2:
-
-        st.metric(
-            "Memory Usage",
-            f"{resources['memory']}%"
-        )
-
-        st.progress(resources["memory"] / 100)
-
-    with r3:
-
-        st.metric(
-            "Disk Usage",
-            f"{resources['disk']}%"
-        )
-
-        st.progress(resources["disk"] / 100)
+    stage_cols = st.columns(len(PIPELINE_STAGES) * 2 - 1)
+    for i, (icon, name, tech) in enumerate(PIPELINE_STAGES):
+        col_idx = i * 2
+        with stage_cols[col_idx]:
+            st.markdown(
+                f"""
+                <div style="text-align:center;background:#161B22;border:1px solid #30363D;
+                    border-radius:10px;padding:12px 6px;min-height:80px;">
+                    <div style="font-size:1.6rem;">{icon}</div>
+                    <div style="font-size:0.78rem;font-weight:700;color:#F0F6FC;">{name}</div>
+                    <div style="font-size:0.65rem;color:#8B949E;margin-top:2px;">{tech}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        # Arrow between stages
+        if i < len(PIPELINE_STAGES) - 1:
+            with stage_cols[col_idx + 1]:
+                st.markdown(
+                    '<div style="text-align:center;font-size:1.5rem;color:#58A6FF;padding-top:22px;">→</div>',
+                    unsafe_allow_html=True,
+                )
 
     st.divider()
 
-    # =====================================================
-    # Technology Stack
-    # =====================================================
-
-    st.subheader("🛠 Technology Stack")
-
-    stack = pd.DataFrame({
-
-        "Component": [
-
-            "Producer",
-            "Kafka",
-            "Spark",
-            "Bronze",
-            "Silver",
-            "Gold",
-            "ClickHouse",
-            "Airflow",
-            "MinIO",
-            "Dashboard"
-
-        ],
-
-        "Technology": [
-
-            "Python",
-            "Apache Kafka",
-            "Apache Spark",
-            "Delta Lake",
-            "Spark SQL",
-            "ClickHouse",
-            "ClickHouse SQL",
-            "Apache Airflow",
-            "MinIO",
-            "Streamlit"
-
-        ],
-
-        "Status": [
-
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢",
-            "🟢"
-
-        ]
-
-    })
-
-    st.dataframe(
-
-        stack,
-
-        hide_index=True,
-
-        use_container_width=True
-
-    )
+    # ── Service Status ─────────────────────────────────────
+    section_header("🔌 Live Service Status")
+    svc_items = list(services.items())
+    cols = st.columns(min(4, len(svc_items))) if svc_items else st.columns(1)
+    for i, (name, ok) in enumerate(svc_items):
+        with cols[i % len(cols)]:
+            status_badge(name, ok)
 
     st.divider()
 
-    # =====================================================
-    # Component Status
-    # =====================================================
-
-    st.subheader("⚙ Component Status")
-
-    cols = st.columns(len(services))
-
-    for col, (name, healthy) in zip(cols, services.items()):
-
-        with col:
-
-            if healthy:
-
-                st.success(name)
-
-            else:
-
-                st.error(name)
-
-    st.divider()
-
-    # =====================================================
-    # Pipeline Summary
-    # =====================================================
-
-    st.subheader("📋 Pipeline Summary")
-
-    summary_df = pd.DataFrame({
-
-        "Stage": [
-
-            "Producer",
-            "Kafka",
-            "Bronze",
-            "Spark",
-            "Silver",
-            "Gold",
-            "Dashboard"
-
-        ],
-
-        "Description": [
-
-            "Generates market trades",
-
-            "Streams events",
-
-            "Stores raw Delta data",
-
-            "Processes streaming jobs",
-
-            "Validates & cleans data",
-
-            "Aggregates analytics",
-
-            "Visualizes results"
-
-        ],
-
-        "Status": [
-
-            "🟢",
-
-            "🟢",
-
-            "🟢",
-
-            "🟢",
-
-            "🟢",
-
-            "🟢",
-
-            "🟢"
-
-        ]
-
-    })
-
-    st.dataframe(
-
-        summary_df,
-
-        hide_index=True,
-
-        use_container_width=True
-
-    )
+    # ── Stack Inventory ───────────────────────────────────
+    section_header("📦 Stack Inventory")
+    import pandas as pd
+    status_map = {
+        "Kafka":           services.get("Kafka"),
+        "Spark Master":    services.get("Spark"),
+        "ClickHouse":      services.get("ClickHouse"),
+        "PostgreSQL":      services.get("PostgreSQL"),
+        "MinIO":           services.get("MinIO"),
+        "Airflow":         services.get("Airflow"),
+        "Schema Registry": services.get("Schema Registry"),
+    }
+    inv_rows = []
+    for svc, image, port, role in STACK_INVENTORY:
+        ok = status_map.get(svc)
+        status = "🟢 Online" if ok is True else ("🔴 Offline" if ok is False else "⚪ Unknown")
+        inv_rows.append({"Service": svc, "Image": image, "Port": port, "Role": role, "Status": status})
+    st.dataframe(pd.DataFrame(inv_rows), hide_index=True, use_container_width=True)
 
     st.divider()
 
-    # =====================================================
-    # Overall Health
-    # =====================================================
-
-    if pipeline["overall"]:
-
-        st.success(
-            "✅ Entire Pipeline is Healthy"
-        )
-
-    else:
-
-        st.error(
-            "❌ One or more services are offline."
-        )
+    # ── Service UI Links ─────────────────────────────────
+    section_header("🔗 Service UIs")
+    links = [
+        ("📊 Dashboard",     "http://localhost:8501"),
+        ("⚡ Spark Master",  "http://localhost:8080"),
+        ("🌬 Airflow",       "http://localhost:8088"),
+        ("🗄 MinIO Console", "http://localhost:9001"),
+        ("📜 Schema Reg.",   "http://localhost:8081"),
+        ("🗃 ClickHouse",    "http://localhost:8123"),
+    ]
+    link_cols = st.columns(3)
+    for i, (label, url) in enumerate(links):
+        with link_cols[i % 3]:
+            st.link_button(label, url, use_container_width=True)

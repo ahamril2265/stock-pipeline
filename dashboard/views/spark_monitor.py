@@ -1,332 +1,71 @@
 import streamlit as st
 import pandas as pd
-
-from spark_metrics import (
-    spark_alive,
-    cluster_summary,
-    cluster_metrics,
-    workers,
-    applications,
-    resource_usage
-)
-
-from components.cards import metric_card
-
+from spark_metrics import cluster_metrics, workers, applications
+from components.cards import metric_card, section_header, page_title
+from components.charts import cluster_bar, gauge_chart
+from config import PLOTLY_CONFIG
 
 def render():
-
-    st.title("⚡ Spark Cluster")
-
-    st.caption(
-        "Real-time monitoring of the Apache Spark cluster"
-    )
-
-    # =====================================================
-    # Connection
-    # =====================================================
-
-    if not spark_alive():
-
-        st.error(
-            "❌ Unable to connect to Spark Master."
-        )
-
-        st.info(
-            "Verify that the Spark Master is running."
-        )
-
-        return
-
-    summary = cluster_summary()
+    page_title("⚡ Spark Cluster", "Apache Spark Structured Streaming Monitor")
 
     metrics = cluster_metrics()
 
-    usage = resource_usage()
-
-    worker_df = pd.DataFrame(workers())
-
-    app_df = pd.DataFrame(applications())
-
-    # =====================================================
-    # Status
-    # =====================================================
-
-    st.success(
-        f"🟢 Spark Cluster Online • {summary['alive_workers']} Worker(s) Alive"
-    )
+    if metrics is None:
+        st.error("❌ Spark Master unreachable. Is the stack running?")
+        st.info("Expected at: http://spark-master:8080")
+        return
 
     st.divider()
 
-    # =====================================================
-    # Cluster Overview
-    # =====================================================
-
-    st.subheader("📊 Cluster Overview")
-
+    # ── Summary Cards ─────────────────────────────────────
+    section_header("🏭 Cluster Summary")
     c1, c2, c3, c4 = st.columns(4)
-
     with c1:
-
-        metric_card(
-            "Workers",
-            summary["workers"],
-            "👷"
-        )
-
+        metric_card("Workers",        f'{metrics["alive_workers"]}/{metrics["workers"]}', "🖥",
+                    color="success" if metrics["alive_workers"] == metrics["workers"] else "error")
     with c2:
-
-        metric_card(
-            "Applications",
-            summary["applications"],
-            "🚀"
-        )
-
+        metric_card("Cores Used",     f'{metrics["cores_used"]}/{metrics["cores_total"]}', "⚙", color="primary")
     with c3:
-
-        metric_card(
-            "Drivers",
-            summary["drivers"],
-            "🖥"
-        )
-
+        metric_card("Memory Used",    f'{metrics["memory_used"]} / {metrics["memory_total"]} MB', "🧠", color="primary")
     with c4:
+        metric_card("Active Apps",    str(metrics["applications"]), "🚀",
+                    color="success" if metrics["applications"] > 0 else "warning")
 
-        metric_card(
-            "Completed Apps",
-            summary["completed_apps"],
-            "✅"
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # =====================================================
-    # Resource Utilization
-    # =====================================================
-
-    st.subheader("💻 Cluster Resources")
-
-    left, right = st.columns(2)
-
-    with left:
-
-        st.metric(
-            "CPU Usage",
-            f"{metrics['cpu_usage']}%"
-        )
-
-        st.progress(
-            metrics["cpu_usage"] / 100
-        )
-
-        st.caption(
-            f"{summary['cores_used']} / {summary['cores_total']} Cores"
-        )
-
-    with right:
-
-        st.metric(
-            "Memory Usage",
-            f"{metrics['memory_usage']}%"
-        )
-
-        st.progress(
-            metrics["memory_usage"] / 100
-        )
-
-        st.caption(
-            f"{summary['memory_used']:,} MB / {summary['memory_total']:,} MB"
-        )
+    st.write("")
+    c5, c6, c7 = st.columns(3)
+    with c5:
+        metric_card("Dead Workers",    str(metrics["dead_workers"]),     "💀", color="error" if metrics["dead_workers"] > 0 else "success")
+    with c6:
+        metric_card("Completed Apps",  str(metrics["completed_apps"]),   "✅", color="success")
+    with c7:
+        metric_card("Cluster Util %",  f'{metrics["cluster_utilization"]}%', "📊",
+                    color="warning" if metrics["cluster_utilization"] > 80 else "primary")
 
     st.divider()
 
-    # =====================================================
-    # Cluster Statistics
-    # =====================================================
-
-    st.subheader("📈 Cluster Statistics")
-
-    s1, s2, s3, s4 = st.columns(4)
-
-    with s1:
-
-        metric_card(
-            "Alive Workers",
-            summary["alive_workers"],
-            "🟢"
-        )
-
-    with s2:
-
-        metric_card(
-            "Dead Workers",
-            summary["dead_workers"],
-            "🔴"
-        )
-
-    with s3:
-
-        metric_card(
-            "Free Cores",
-            summary["cores_free"],
-            "⚙"
-        )
-
-    with s4:
-
-        metric_card(
-            "Cluster Utilization",
-            f"{metrics['cluster_utilization']}%",
-            "📊"
-        )
+    # ── Gauge Charts ─────────────────────────────────────
+    section_header("📊 Cluster Utilization")
+    g1, g2 = st.columns(2)
+    with g1:
+        st.plotly_chart(gauge_chart(metrics["cpu_usage"],    100, "Core Utilization %"), use_container_width=True)
+    with g2:
+        st.plotly_chart(gauge_chart(metrics["memory_usage"], 100, "Memory Utilization %"), use_container_width=True)
 
     st.divider()
 
-    # =====================================================
-    # Workers
-    # =====================================================
-
-    st.subheader("👷 Worker Details")
-
-    if worker_df.empty:
-
-        st.info("No Spark workers registered.")
-
+    # ── Worker Table ─────────────────────────────────────
+    section_header("🖥 Worker Details")
+    worker_list = workers()
+    if worker_list:
+        df = pd.DataFrame(worker_list)
+        st.dataframe(df, hide_index=True, use_container_width=True)
     else:
+        st.info("No workers registered.")
 
-        st.dataframe(
-            worker_df,
-            hide_index=True,
-            use_container_width=True
-        )
-
-    st.divider()
-
-    # =====================================================
-    # Applications
-    # =====================================================
-
-    st.subheader("🚀 Active Applications")
-
-    if app_df.empty:
-
-        st.info(
-            "No active Spark applications."
-        )
-
-    else:
-
-        st.dataframe(
-            app_df,
-            hide_index=True,
-            use_container_width=True
-        )
-
-    st.divider()
-
-    # =====================================================
-    # Cluster Summary
-    # =====================================================
-
-    st.subheader("📋 Cluster Summary")
-
-    summary_df = pd.DataFrame({
-
-        "Metric": [
-
-            "Workers",
-
-            "Alive Workers",
-
-            "Dead Workers",
-
-            "Applications",
-
-            "Completed Applications",
-
-            "Drivers",
-
-            "CPU Usage",
-
-            "Memory Usage",
-
-            "Cluster Utilization"
-
-        ],
-
-        "Value": [
-
-            summary["workers"],
-
-            summary["alive_workers"],
-
-            summary["dead_workers"],
-
-            summary["applications"],
-
-            summary["completed_apps"],
-
-            summary["drivers"],
-
-            f"{metrics['cpu_usage']}%",
-
-            f"{metrics['memory_usage']}%",
-
-            f"{metrics['cluster_utilization']}%"
-
-        ]
-
-    })
-
-    st.dataframe(
-        summary_df,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # =====================================================
-    # Health
-    # =====================================================
-
-    st.subheader("❤️ Cluster Health")
-
-    if summary["dead_workers"] == 0:
-
-        st.success("🟢 All Spark workers are online.")
-
-    else:
-
-        st.error(
-            f"🔴 {summary['dead_workers']} worker(s) are offline."
-        )
-
-    if summary["applications"] > 0:
-
-        st.success(
-            f"🟢 {summary['applications']} active application(s)."
-        )
-
-    else:
-
-        st.warning(
-            "🟡 No active Spark applications."
-        )
-
-    if metrics["cpu_usage"] > 90:
-
-        st.warning(
-            "⚠ CPU utilization is above 90%."
-        )
-
-    if metrics["memory_usage"] > 90:
-
-        st.warning(
-            "⚠ Memory utilization is above 90%."
-        )
-
-    if metrics["cluster_utilization"] > 85:
-
-        st.warning(
-            "⚠ Cluster utilization is high."
-        )
+    # ── Applications Table ────────────────────────────────
+    app_list = applications()
+    if app_list:
+        st.divider()
+        section_header("🚀 Active Applications")
+        df_apps = pd.DataFrame(app_list)
+        st.dataframe(df_apps, hide_index=True, use_container_width=True)

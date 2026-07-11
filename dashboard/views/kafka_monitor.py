@@ -1,213 +1,60 @@
 import streamlit as st
 import pandas as pd
+import requests
+from kafka_metrics import cluster_summary, topic_statistics, broker_alive
+from components.cards import metric_card, section_header, page_title
+from config import PLOTLY_CONFIG
 
-from kafka_metrics import (
-    broker_alive,
-    cluster_summary,
-    topics,
-    topic_statistics,
-    cluster_health
-)
-
-from components.cards import metric_card
-
+SCHEMA_REGISTRY = "http://schema-registry:8081"
 
 def render():
+    page_title("📨 Kafka Cluster", "Apache Kafka & Schema Registry Monitor")
 
-    st.title("📨 Kafka Cluster")
-
-    st.caption(
-        "Real-time monitoring of Apache Kafka"
-    )
-
-    # =====================================================
-    # Connection
-    # =====================================================
-
-    if not broker_alive():
-
-        st.error(
-            "❌ Kafka Broker is unreachable."
-        )
-
-        st.info(
-            "Verify that the Kafka container is running."
-        )
-
-        return
-
+    alive   = broker_alive()
     summary = cluster_summary()
 
-    health = cluster_health()
-
-    topic_df = pd.DataFrame(
-        topic_statistics()
-    )
-
-    # =====================================================
-    # Status
-    # =====================================================
-
-    st.success(
-        "🟢 Kafka Broker Connected"
-    )
+    if not alive or summary is None:
+        st.error("❌ Kafka broker unreachable.")
+        return
 
     st.divider()
 
-    # =====================================================
-    # KPI Cards
-    # =====================================================
-
-    st.subheader("📊 Cluster Overview")
-
+    # ── Summary Cards ─────────────────────────────────────
+    section_header("📊 Cluster Summary")
     c1, c2, c3, c4 = st.columns(4)
-
     with c1:
-
-        metric_card(
-            "Broker",
-            summary["broker"],
-            "🖥"
-        )
-
+        metric_card("Broker",        summary.get("broker", "ONLINE"),   "🟢", color="success")
     with c2:
-
-        metric_card(
-            "Topics",
-            summary["topics"],
-            "📦"
-        )
-
+        metric_card("Total Topics",  str(summary.get("topics", 0)),     "📂", color="primary")
     with c3:
-
-        metric_card(
-            "Partitions",
-            summary["partitions"],
-            "🧩"
-        )
-
+        metric_card("Partitions",    str(summary.get("partitions", 0)), "📊", color="primary")
     with c4:
-
-        metric_card(
-            "User Topics",
-            summary["user_topics"],
-            "📁"
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # =====================================================
-    # Additional Metrics
-    # =====================================================
-
-    st.subheader("📈 Topic Statistics")
-
-    left, right = st.columns(2)
-
-    with left:
-
-        st.metric(
-            "Internal Topics",
-            summary["internal_topics"]
-        )
-
-    with right:
-
-        st.metric(
-            "Healthy Broker",
-            "YES" if health["healthy"] else "NO"
-        )
+        metric_card("User Topics",   str(summary.get("user_topics", 0)),"📋", color="success")
 
     st.divider()
 
-    # =====================================================
-    # Topics
-    # =====================================================
-
-    st.subheader("📋 Topic Details")
-
-    if topic_df.empty:
-
-        st.warning(
-            "No topics available."
-        )
-
+    # ── Topic Statistics ──────────────────────────────────
+    section_header("📋 Topic Details")
+    topics = topic_statistics()
+    if topics:
+        df = pd.DataFrame(topics)
+        st.dataframe(df, hide_index=True, use_container_width=True)
     else:
-
-        st.dataframe(
-            topic_df,
-            hide_index=True,
-            use_container_width=True
-        )
+        st.info("No topic data available.")
 
     st.divider()
 
-    # =====================================================
-    # Cluster Summary
-    # =====================================================
-
-    st.subheader("📊 Cluster Summary")
-
-    summary_df = pd.DataFrame({
-
-        "Metric": [
-
-            "Broker Status",
-
-            "Topics",
-
-            "User Topics",
-
-            "Internal Topics",
-
-            "Partitions"
-
-        ],
-
-        "Value": [
-
-            summary["broker"],
-
-            summary["topics"],
-
-            summary["user_topics"],
-
-            summary["internal_topics"],
-
-            summary["partitions"]
-
-        ]
-
-    })
-
-    st.dataframe(
-        summary_df,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # =====================================================
-    # Health
-    # =====================================================
-
-    st.subheader("❤️ Cluster Health")
-
-    if health["healthy"]:
-
-        st.success("🟢 Kafka Cluster Healthy")
-
-    else:
-
-        st.error("🔴 Kafka Cluster Offline")
-
-    st.info(
-        f"""
-Broker Status: **{summary['broker']}**
-
-Topics: **{summary['topics']}**
-
-Partitions: **{summary['partitions']}**
-"""
-    )
+    # ── Schema Registry ────────────────────────────────────
+    section_header("📜 Schema Registry Subjects")
+    try:
+        resp = requests.get(f"{SCHEMA_REGISTRY}/subjects", timeout=4)
+        if resp.status_code == 200:
+            subjects = resp.json()
+            metric_card("Registered Schemas", str(len(subjects)), "📝", color="success")
+            st.write("")
+            for subj in subjects:
+                st.markdown(f'<code style="background:#1C2128;padding:3px 8px;border-radius:5px;font-size:0.82rem;">{subj}</code>', unsafe_allow_html=True)
+        else:
+            st.warning("Schema Registry responded with non-200 status.")
+    except Exception:
+        st.warning("⚠ Schema Registry unreachable.")

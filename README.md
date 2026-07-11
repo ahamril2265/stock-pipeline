@@ -1,392 +1,187 @@
-# 📈 Real-Time Stock Market Analytics Pipeline
+# Real-Time Stock Market Data Pipeline
 
-An end-to-end real-time stock market data engineering platform built using Kafka, Spark, Delta Lake, MinIO, ClickHouse, and Airflow.
+A production-grade streaming analytics platform that ingests simulated market events, processes them through a multi-layer lakehouse, and serves real-time insights through a premium analytics dashboard.
 
-The project simulates real-time stock market events, processes them through a Bronze-Silver-Gold architecture, and produces analytical datasets for reporting and visualization.
+## Architecture
 
----
-
-## 🚀 Project Overview
-
-This project demonstrates a modern Data Engineering architecture capable of:
-
-* Real-time event ingestion
-* Streaming and batch processing
-* Delta Lake storage
-* Data quality and aggregation layers
-* Analytical serving through ClickHouse
-* Workflow orchestration with Airflow
-
----
-
-## 🏗️ Architecture
-
-```text
-Stock Event Producers
-        │
-        ▼
-      Kafka
-        │
-        ▼
-  Bronze Layer
- (Raw Delta Tables)
-        │
-        ▼
-  Silver Layer
- (Business Metrics)
-        │
-        ▼
-   Gold Layer
-(Analytics Tables)
-        │
-        ▼
-   ClickHouse
-        │
-        ▼
- Dashboard / BI
+```mermaid
+flowchart LR
+    Producer["🐍 Python Producer"] --> Kafka["📨 Apache Kafka"]
+    Kafka --> Spark["⚡ Spark Structured Streaming"]
+    Spark --> Bronze["🗻 Bronze — Delta/MinIO"]
+    Bronze --> Silver["🥈 Silver — Delta/MinIO"]
+    Silver --> Gold["🥇 Gold Builders"]
+    Gold --> ClickHouse["🗃 ClickHouse"]
+    ClickHouse --> Dashboard["📊 Streamlit Dashboard"]
+    Airflow["🌬 Apache Airflow"] --> Spark
+    SchemaRegistry["📜 Schema Registry"] --> Kafka
+    PostgreSQL["🐘 PostgreSQL"] --> Airflow
 ```
 
----
+## Technology Stack
 
-## 🛠️ Technology Stack
+| Layer | Technology |
+|---|---|
+| Event Production | Python, Avro, Confluent Schema Registry |
+| Message Streaming | Apache Kafka 7.5 |
+| Stream Processing | Apache Spark 3.x Structured Streaming |
+| Lakehouse Storage | Delta Lake, MinIO (S3-compatible) |
+| Analytical Serving | ClickHouse |
+| Orchestration | Apache Airflow |
+| Metadata Store | PostgreSQL 15 |
+| Dashboard | Streamlit 1.46, Plotly 6.2, psutil |
+| Deployment | Docker Compose |
 
-| Component              | Technology                |
-| ---------------------- | ------------------------- |
-| Language               | Python                    |
-| Streaming              | Apache Kafka              |
-| Schema Management      | Confluent Schema Registry |
-| Processing             | Apache Spark              |
-| Storage                | Delta Lake                |
-| Object Storage         | MinIO                     |
-| Analytics Database     | ClickHouse                |
-| Workflow Orchestration | Apache Airflow            |
-| Containerization       | Docker & Docker Compose   |
-
----
-
-## 📂 Project Structure
+## Folder Structure
 
 ```text
-stock-pipeline/
-│
-├── airflow/
-│   ├── dags/
-│   ├── logs/
-│   └── plugins/
-│
-├── clickhouse/
-│   └── init/
-│
-├── dashboard/
-│
-├── producers/
-│   ├── stock_price_producer.py
-│   └── stock_trade_producer.py
-│
-├── schemas/
-│
-├── spark/
-│   ├── bronze/
-│   ├── silver/
-│   ├── gold/
-│   └── conf/
-│
-├── scripts/
-│   ├── run_pipeline.sh
-│   ├── run_silver.sh
-│   └── run_gold.sh
-│
-├── Dockerfile.spark
-├── docker-compose.yml
+.
+├── airflow/                  # Airflow image, DAGs, logs, plugins
+├── clickhouse/init/          # ClickHouse gold schema SQL
+├── dashboard/                # Streamlit app — views, components, metrics modules
+│   ├── components/           # cards, charts, sidebar, header, status_bar, footer
+│   ├── views/                # 13 page views
+│   └── assets/style.css      # Premium dark UI (Inter, glassmorphism, animations)
+├── gold/                     # Gold aggregation utilities
+├── producer/                 # Avro market event producer
+├── scripts/                  # Pipeline startup scripts
+├── spark/                    # Bronze, silver, gold, replay, optimize jobs
+├── tools/                    # Support tooling
+├── docker-compose.yml        # Full local production stack
 └── README.md
 ```
 
----
-
-# Bronze Layer
-
-The Bronze layer stores raw events exactly as received from Kafka.
-
-### Datasets
-
-* Price Events
-* Trade Events
-
-### Storage
-
-```text
-MinIO
-└── Delta Tables
-```
-
-### Purpose
-
-* Preserve source data
-* Enable replayability
-* Support downstream transformations
-
----
-
-# Silver Layer
-
-The Silver layer performs business-level transformations and metric calculations.
-
-### Silver Datasets
-
-#### Price Events
-
-Processed stock price stream.
-
-#### Trade VWAP Metrics
-
-Calculates:
-
-```text
-VWAP = Σ(price × quantity)
-       -------------------
-         Σ(quantity)
-```
-
-#### Trade Volume Metrics
-
-Computes:
-
-* Buy Volume
-* Sell Volume
-* Total Volume
-
-#### Trade Latency Metrics
-
-Computes average processing latency.
-
----
-
-# Gold Layer
-
-The Gold layer contains business-ready analytical datasets.
-
-## gold_symbol_summary
-
-Per-stock analytical summary:
-
-* Latest Price
-* Daily Volume
-* VWAP
-* Average Spread
-* Average Latency
-* Buy Volume
-* Sell Volume
-
----
-
-## gold_market_kpis
-
-Market-wide KPIs:
-
-* Total Market Volume
-* Total Buy Volume
-* Total Sell Volume
-* Market VWAP
-* Average Market Price
-* Average Market Latency
-* Active Symbols
-
----
-
-## gold_top_symbols
-
-Top traded symbols ranked by volume.
-
----
-
-## gold_ohlc
-
-OHLC candlestick dataset:
-
-* Open
-* High
-* Low
-* Close
-* Volume
-
----
-
-# Workflow Orchestration
-
-Apache Airflow orchestrates the complete pipeline.
-
-### DAG Flow
-
-```text
-silver_trade
-        │
-        ▼
-silver_price
-        │
-        ▼
-gold_symbol_summary
-        │
-        ▼
-gold_market_kpis
-        │
-        ▼
-gold_top_symbols
-        │
-        ▼
-gold_ohlc
-```
-
-### Features
-
-* Scheduled execution
-* Dependency management
-* Retry handling
-* Centralized monitoring
-
----
-
-# Infrastructure Components
-
-## Kafka
-
-Used for real-time event streaming.
-
-Topics:
-
-```text
-stock_prices
-stock_trades
-```
-
----
-
-## Schema Registry
-
-Manages Avro schemas and ensures schema compatibility.
-
----
-
-## MinIO
-
-S3-compatible object storage used for Delta Lake datasets.
-
----
-
-## Spark
-
-Responsible for:
-
-* Streaming ingestion
-* Silver transformations
-* Gold aggregations
-
----
-
-## ClickHouse
-
-Serves analytical datasets for dashboards and reporting.
-
-Tables:
-
-```text
-gold_symbol_summary
-gold_market_kpis
-gold_top_symbols
-gold_ohlc
-```
-
----
-
-# Running the Project
-
-## Start Infrastructure
+## Dashboard
+
+Available at **<http://localhost:8501>** after starting the stack.
+
+Auto-refreshes every **30 seconds** using `streamlit-autorefresh`. All data is sourced live from the running services — no hardcoded or randomly generated metrics.
+
+### Pages
+
+| Page | Data Source | Key Features |
+|------|------------|--------------|
+| 📈 Market Overview | ClickHouse `gold_market_kpis` | 7 KPI cards, buy/sell donut, volume bar, leaderboard, activity feed |
+| 🏆 Top Symbols | ClickHouse `gold_top_symbols` | Search/filter, treemap, VWAP chart, ranked table |
+| 🔍 Symbol Analysis | ClickHouse `gold_symbol_summary` + `gold_ohlc` | Symbol picker, candlestick+volume chart, 7 per-symbol KPIs |
+| 🕯 OHLC | ClickHouse `gold_ohlc` | Multi-symbol candlestick grid (1 or 2 column), OHLC summary table |
+| ⚙ Pipeline Health | `health.py` + ClickHouse + psutil | Full-width health banner, 3 Plotly gauges, service grid, gold freshness, alerts |
+| 🛡 Failure Recovery | ClickHouse + `health.py` | Recovery KPIs, pipeline stage flow, Bronze/Silver/Gold layer status, event feed |
+| ⚡ Spark Cluster | Spark `GET /json` API | Cluster cards, core/memory gauges, worker table, active apps |
+| 🌬 Airflow Monitor | Airflow REST API | Health cards, DAG list, per-DAG run history |
+| 📨 Kafka Cluster | `KafkaAdminClient` | Broker status, topic table, Schema Registry subjects |
+| 💾 Storage Monitor | ClickHouse + MinIO SDK + psycopg2 | 3-store health badges, per-store metrics, MinIO bucket chart |
+| 📊 Performance Benchmark | ClickHouse + psutil + Spark | Real benchmark score, radar chart, stage throughput, latency breakdown |
+| 🏗 Architecture | `health.py` + static | Horizontal pipeline flow, stack inventory with live status, service links |
+| 📜 Live Logs | `docker logs` subprocess | Service selector, level filter, color-coded log table |
+
+### Live Data Sources
+
+| Service | Method |
+|---------|--------|
+| ClickHouse | `clickhouse_connect` → 4 gold tables, cached TTL 10s |
+| Apache Spark | `GET http://spark-master:8080/json` |
+| Apache Kafka | `KafkaAdminClient(kafka:29092)` |
+| Apache Airflow | `GET http://airflow-webserver:8080/api/v1/` |
+| MinIO | `minio.Minio` SDK |
+| PostgreSQL | `psycopg2(admin/admin/stockdb)` |
+| Host System | `psutil` CPU, memory, disk |
+| Schema Registry | `GET http://schema-registry:8081/subjects` |
+| Container Logs | `docker logs --tail N <container>` |
+
+## Setup
+
+### Prerequisites
+
+- Docker Desktop (with at least 8 GB RAM allocated)
+
+### Start the Stack
 
 ```bash
+git clone <repo-url>
+cd stock-pipeline
+docker compose up --build
+```
+
+### Access the Services
+
+| Service | URL |
+|---------|-----|
+| 📊 Dashboard | <http://localhost:8501> |
+| ⚡ Spark Master | <http://localhost:8080> |
+| 🌬 Airflow | <http://localhost:8088> |
+| 🗄 MinIO Console | <http://localhost:9001> |
+| 📜 Schema Registry | <http://localhost:8081> |
+| 🗃 ClickHouse HTTP | <http://localhost:8123> |
+
+### Default Credentials
+
+| Service | Username | Password |
+|---------|----------|----------|
+| Airflow | `admin` | `admin` |
+| MinIO | `admin` | `admin123` |
+| ClickHouse | `admin` | `admin123` |
+| PostgreSQL | `admin` | `admin` / DB: `stockdb` |
+
+## Docker Commands
+
+```bash
+# Build and start all services
+docker compose up --build
+
+# Start detached
 docker compose up -d
+
+# Follow all logs
+docker compose logs -f
+
+# Follow dashboard only
+docker compose logs -f dashboard
+
+# Rebuild dashboard only (fast — uses cached pip layer)
+docker compose build dashboard
+docker compose up dashboard --no-deps
+
+# Stop
+docker compose down
+
+# Stop and remove volumes (full reset)
+docker compose down -v
 ```
 
----
+## Data Pipeline Flow
 
-## Run Producers
-
-```bash
-python producers/stock_price_producer.py
+```
+Producer → Kafka → [Bronze Stream] → MinIO/Delta
+                                         ↓
+                              [Silver Stream] → MinIO/Delta
+                                         ↓
+                              [Gold Builders] → ClickHouse
+                                         ↓
+                              Streamlit Dashboard (30s refresh)
 ```
 
-```bash
-python producers/stock_trade_producer.py
-```
+1. **Producer** emits Avro-encoded market events to Kafka topics (one per symbol).
+2. **Bronze Stream** (Spark) consumes Kafka, writes raw events to MinIO Delta.
+3. **Silver Stream** (Spark) validates, deduplicates, and enriches Bronze data.
+4. **Gold Builders** aggregate market KPIs, symbol summaries, top symbols, and OHLC windows, writing to ClickHouse.
+5. **Dashboard** queries ClickHouse gold tables and all service APIs for live monitoring.
+6. **Airflow** orchestrates operational jobs; **PostgreSQL** stores Airflow metadata.
 
----
+## ClickHouse Gold Schema
 
-## Execute Pipeline
+| Table | Description |
+|-------|-------------|
+| `gold_market_kpis` | Aggregate market volume, VWAP, latency, buy/sell split |
+| `gold_symbol_summary` | Per-symbol price, volume, VWAP, spread, latency |
+| `gold_top_symbols` | Volume-ranked symbol leaderboard |
+| `gold_ohlc` | OHLC candlestick windows per symbol |
 
-```bash
-bash scripts/run_pipeline.sh
-```
+## Future Improvements
 
----
-
-## Access Services
-
-### Airflow
-
-```text
-http://localhost:8088
-```
-
-### Spark UI
-
-```text
-http://localhost:8080
-```
-
-### MinIO Console
-
-```text
-http://localhost:9001
-```
-
-### ClickHouse
-
-```text
-http://localhost:8123
-```
-
----
-
-# Key Engineering Concepts Demonstrated
-
-* Real-Time Data Streaming
-* Event-Driven Architecture
-* Bronze-Silver-Gold Design Pattern
-* Delta Lake Storage
-* Data Aggregation Pipelines
-* Workflow Orchestration
-* Containerized Data Platforms
-* Analytical Data Serving
-
----
-
-# Future Enhancements
-
-* Interactive Dashboard (Dash/Plotly)
-* Monitoring & Alerting
-* Data Quality Validation
-* CI/CD Pipeline
-* Kubernetes Deployment
-* Prometheus & Grafana Integration
-* Real Market Data Integration
-
----
-
-# Author
-
-**Ahamed Rilwan Mohaaideen**
-
-* LinkedIn: https://www.linkedin.com/in/ahamedrilwan
-* GitHub: https://github.com/ahamril2265
-
----
-
-⭐ If you found this project interesting, consider giving it a star.
+- Persist benchmark history for true time-series performance trends
+- Add Kafka consumer lag tracking via JMX or Burrow
+- Add Delta table size and checkpoint freshness to pipeline health
+- Add Prometheus + Grafana for long-term infrastructure observability
+- Add CI for import validation, Docker Compose linting, and Spark job checks
+- Add real-time WebSocket push to avoid polling overhead

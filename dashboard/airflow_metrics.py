@@ -80,7 +80,7 @@ def health():
 
 def dags():
 
-    data = api("/api/v1/dags")
+    data = api("/api/v1/dags?limit=100")
 
     if data is None:
 

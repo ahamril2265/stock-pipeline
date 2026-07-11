@@ -1,257 +1,78 @@
 import streamlit as st
-import plotly.graph_objects as go
-
-from db import (
-    get_symbol_summary,
-    get_ohlc
-)
-
-from components.cards import metric_card
-
-from notifications import render_notifications
-
-
-PLOTLY_CONFIG = {
-    "displaylogo": False,
-    "responsive": True,
-    "modeBarButtonsToRemove": [
-        "lasso2d",
-        "select2d"
-    ]
-}
-
+from db import get_symbol_summary, get_ohlc_for_symbol, get_ohlc
+from components.cards import metric_card, section_header, page_title
+from components.charts import candlestick_chart
+from formatter import price, number
+from config import PLOTLY_CONFIG
 
 def render():
-
-    st.title("🔍 Symbol Analysis")
-    st.caption("Detailed analytics for an individual stock")
-
-    # ==================================================
-    # Load Data
-    # ==================================================
+    page_title("🔍 Symbol Analysis", "Per-Symbol Deep Dive")
 
     summary_df = get_symbol_summary()
-
     if summary_df.empty:
-        st.warning("No symbol summary available.")
+        st.warning("⏳ No symbol data yet.")
         return
 
-    ohlc_df = get_ohlc()
+    symbols = sorted(summary_df["stock_symbol"].tolist())
+    selected = st.selectbox("🔍 Select Symbol", symbols)
 
-    # ==================================================
-    # Symbol Selection
-    # ==================================================
+    detail_df = summary_df[summary_df["stock_symbol"] == selected]
+    ohlc_df   = get_ohlc_for_symbol(selected)
 
-    symbol = st.selectbox(
-        "Select Stock Symbol",
-        sorted(summary_df["stock_symbol"].unique())
-    )
+    if detail_df.empty:
+        st.warning(f"No data for {selected}.")
+        return
 
-    row = summary_df[
-        summary_df["stock_symbol"] == symbol
-    ].iloc[0]
+    row = detail_df.iloc[0]
+    st.divider()
 
-    # ==================================================
-    # Market KPIs
-    # ==================================================
-
-    st.subheader("📊 Market Metrics")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        metric_card(
-            "Latest Price",
-            f"${row['latest_price']:.2f}",
-            "💲"
-        )
-
-    with c2:
-        metric_card(
-            "VWAP",
-            f"${row['vwap']:.2f}",
-            "📈"
-        )
-
-    with c3:
-        metric_card(
-            "Average Spread",
-            f"{row['avg_spread']:.4f}",
-            "↔️"
-        )
-
-    with c4:
-        metric_card(
-            "Latency",
-            f"{row['avg_latency']:.2f} ms",
-            "⚡"
-        )
+    # ── KPI Cards ─────────────────────────────────────────
+    section_header(f"📊 {selected} — Market Stats")
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        metric_card("Latest Price",  price(row["latest_price"]),  "💰", color="primary")
+    with k2:
+        metric_card("Daily Volume",  number(row["daily_volume"]), "📊", color="success")
+    with k3:
+        metric_card("VWAP",          price(row["vwap"]),          "💹", color="primary")
+    with k4:
+        metric_card("Avg Spread",    f'{row["avg_spread"]:.4f}',  "↔", color="warning")
 
     st.write("")
-
-    c5, c6 = st.columns(2)
-
-    with c5:
-        metric_card(
-            "Buy Volume",
-            f"{int(row['buy_volume']):,}",
-            "🟢"
-        )
-
-    with c6:
-        metric_card(
-            "Sell Volume",
-            f"{int(row['sell_volume']):,}",
-            "🔴"
-        )
-
-    st.info(f"Selected Symbol: **{symbol}**")
+    k5, k6, k7 = st.columns(3)
+    with k5:
+        metric_card("Buy Volume",  number(row["buy_volume"]),  "🟢", color="success")
+    with k6:
+        metric_card("Sell Volume", number(row["sell_volume"]), "🔴", color="error")
+    with k7:
+        buy_pct = row["buy_volume"] / (row["buy_volume"] + row["sell_volume"]) * 100 if (row["buy_volume"] + row["sell_volume"]) > 0 else 0
+        metric_card("Buy Ratio", f"{buy_pct:.1f}%", "⚖", color="success" if buy_pct > 50 else "error")
 
     st.divider()
 
-    # ==================================================
-    # OHLC Chart
-    # ==================================================
-
-    filtered = ohlc_df[
-        ohlc_df["stock_symbol"] == symbol
-    ].sort_values("window_start")
-
-    if not filtered.empty:
-
-        st.subheader("🕯 Price Action")
-
-        fig = go.Figure()
-
-        fig.add_trace(
-
-            go.Candlestick(
-
-                x=filtered["window_start"],
-
-                open=filtered["open_price"],
-
-                high=filtered["high_price"],
-
-                low=filtered["low_price"],
-
-                close=filtered["close_price"],
-
-                increasing_line_color="#00E676",
-
-                decreasing_line_color="#FF5252",
-
-                name=symbol
-
-            )
-
-        )
-
-        fig.update_layout(
-
-            template="plotly_dark",
-
-            height=600,
-
-            title=f"{symbol} OHLC",
-
-            xaxis_title="Time",
-
-            yaxis_title="Price ($)",
-
-            xaxis_rangeslider_visible=False,
-
-            margin=dict(
-                l=20,
-                r=20,
-                t=60,
-                b=20
-            )
-
-        )
-
+    # ── OHLC Chart ────────────────────────────────────────
+    section_header(f"🕯 OHLC Candlestick — {selected}")
+    if not ohlc_df.empty:
         st.plotly_chart(
-            fig,
+            candlestick_chart(ohlc_df, symbol=selected),
             use_container_width=True,
-            config=PLOTLY_CONFIG
+            config=PLOTLY_CONFIG,
         )
+    else:
+        st.info("No OHLC data available for this symbol yet.")
 
     st.divider()
 
-    # ==================================================
-    # Additional Statistics
-    # ==================================================
+    # ── OHLC Summary Table ────────────────────────────────
+    if not ohlc_df.empty:
+        section_header("📋 OHLC Window Details")
+        display = ohlc_df[[
+            "window_start","window_end","open_price","high_price",
+            "low_price","close_price","total_volume"
+        ]].sort_values("window_start", ascending=False).head(20)
+        display.columns = ["Start","End","Open","High","Low","Close","Volume"]
+        st.dataframe(display, hide_index=True, use_container_width=True)
 
-    if not filtered.empty:
-
-        s1, s2, s3 = st.columns(3)
-
-        with s1:
-            st.metric(
-                "Highest Price",
-                f"${filtered['high_price'].max():.2f}"
-            )
-
-        with s2:
-            st.metric(
-                "Lowest Price",
-                f"${filtered['low_price'].min():.2f}"
-            )
-
-        with s3:
-            st.metric(
-                "Average Volume",
-                f"{int(filtered['total_volume'].mean()):,}"
-            )
-
-    st.divider()
-
-    # ==================================================
-    # Symbol Statistics
-    # ==================================================
-
-    st.subheader("📋 Symbol Statistics")
-
-    stats = {
-        "Metric": [
-            "Latest Price",
-            "VWAP",
-            "Average Spread",
-            "Average Latency",
-            "Buy Volume",
-            "Sell Volume"
-        ],
-        "Value": [
-            f"${row['latest_price']:.2f}",
-            f"${row['vwap']:.2f}",
-            f"{row['avg_spread']:.4f}",
-            f"{row['avg_latency']:.2f} ms",
-            f"{int(row['buy_volume']):,}",
-            f"{int(row['sell_volume']):,}"
-        ]
-    }
-
-    st.dataframe(
-        stats,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # ==================================================
-    # Recent OHLC Data
-    # ==================================================
-
-    with st.expander("📄 View Recent OHLC Records"):
-
-        st.dataframe(
-            filtered.sort_values(
-                "window_start",
-                ascending=False
-            ),
-            hide_index=True,
-            use_container_width=True
-        )
-    
-    render_notifications()
+    # ── Raw Symbol Summary ─────────────────────────────────
+    with st.expander("🔍 Raw Symbol Summary"):
+        st.dataframe(detail_df, hide_index=True, use_container_width=True)

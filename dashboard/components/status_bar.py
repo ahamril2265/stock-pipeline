@@ -1,81 +1,25 @@
 import streamlit as st
-from datetime import datetime, UTC
-
-
-SERVICES = [
-    {
-        "name": "Kafka",
-        "status": True,
-        "role": "Streaming"
-    },
-    {
-        "name": "Spark",
-        "status": True,
-        "role": "Processing"
-    },
-    {
-        "name": "Airflow",
-        "status": True,
-        "role": "Scheduler"
-    },
-    {
-        "name": "ClickHouse",
-        "status": True,
-        "role": "Analytics"
-    },
-    {
-        "name": "MinIO",
-        "status": True,
-        "role": "Lakehouse"
-    }
-]
+from health import all_services
 
 
 def render():
+    try:
+        services = all_services()
+    except Exception:
+        services = {}
 
-    st.subheader("🚀 Pipeline Status")
+    pills = []
+    for name, ok in services.items():
+        dot_cls  = "dot-online"    if ok else "dot-offline"
+        pill_cls = "status-online" if ok else "status-offline"
+        label    = "ONLINE"        if ok else "OFFLINE"
+        pills.append(
+            f'<span class="status-pill {pill_cls}" style="font-size:0.72rem;padding:3px 10px;">'
+            f'<span class="status-dot {dot_cls}"></span>{name}&nbsp;·&nbsp;{label}</span>'
+        )
 
-    cols = st.columns(len(SERVICES) + 1)
-
-    # ==========================================
-    # Service Cards
-    # ==========================================
-
-    for col, service in zip(cols[:-1], SERVICES):
-
-        with col:
-
-            with st.container(border=True):
-
-                status = "🟢 Online" if service["status"] else "🔴 Offline"
-
-                st.markdown(f"### {service['name']}")
-
-                st.caption(service["role"])
-
-                if service["status"]:
-                    st.success(status)
-                else:
-                    st.error(status)
-
-    # ==========================================
-    # Refresh Card
-    # ==========================================
-
-    with cols[-1]:
-
-        with st.container(border=True):
-
-            st.markdown("### 🔄")
-
-            st.caption("Auto Refresh")
-
-            st.info("Every 5 Seconds")
-
-            st.caption(
-                datetime.now(UTC).strftime(
-                    "%H:%M:%S UTC"
-                )
-            )
-
-    st.divider()
+    bar = "".join(pills)
+    st.markdown(
+        f'<div class="status-bar-wrap">{bar}</div>',
+        unsafe_allow_html=True,
+    )

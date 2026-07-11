@@ -1,193 +1,100 @@
 import streamlit as st
-
-from db import (
-    get_market_kpis,
-    get_top_symbols
-)
-
-from components.cards import metric_card
-from components.charts import (
-    top_symbols_chart,
-    buy_sell_chart
-)
-
-from formatter import (
-    number,
-    price,
-    latency
-)
+from db import get_market_kpis, get_top_symbols, get_ohlc
+from components.cards import metric_card, section_header, page_title
+from components.charts import top_symbols_chart, buy_sell_chart, volume_timeline
+from formatter import number, price, latency, percent
 from notifications import render_notifications
-
-PLOTLY_CONFIG = {
-    "displaylogo": False,
-    "responsive": True,
-    "modeBarButtonsToRemove": [
-        "lasso2d",
-        "select2d"
-    ]
-}
-
+from config import PLOTLY_CONFIG
 
 def render():
+    page_title("📈 Market Overview", "Real-Time Market Summary • Auto-Refresh: 30s")
 
-    
-
-    st.title("📈 Market Overview")
-    st.caption("Real-Time Market Summary")
-
-    # ==========================================
-    # Load Data
-    # ==========================================
-
-    market_df = get_market_kpis()
+    # ── Data ──────────────────────────────────────────────
+    market_df  = get_market_kpis()
+    top_df     = get_top_symbols()
+    ohlc_df    = get_ohlc()
 
     if market_df.empty:
-        st.warning("No Market KPI data available.")
-        return
-
-    top_symbols = get_top_symbols()
-
-    if top_symbols.empty:
-        st.warning("No Top Symbols data available.")
+        st.warning("⏳ No market KPI data yet. The pipeline may still be warming up.")
         return
 
     row = market_df.iloc[0]
 
-    # ==========================================
-    # Market KPIs
-    # ==========================================
-
-    st.subheader("📊 Market KPIs")
-
+    # ── Top KPIs ──────────────────────────────────────────
+    st.write("")
+    section_header("📊 Market KPIs")
     c1, c2, c3, c4 = st.columns(4)
-
     with c1:
-        metric_card(
-            "Market Volume",
-            number(row['total_market_volume']),
-            "📊"
-        )
-
+        metric_card("Market Volume",    number(row["total_market_volume"]),  "📊", color="primary")
     with c2:
-        metric_card(
-            "Active Symbols",
-            number(row["active_symbols"]),
-            "📈"
-        )
-
+        metric_card("Active Symbols",   number(row["active_symbols"]),       "📈", color="success")
     with c3:
-        metric_card(
-            "Market VWAP",
-            price(row['market_vwap']),
-            "💰"
-        )
-
+        metric_card("Market VWAP",      price(row["market_vwap"]),           "💰", color="accent" if False else "primary")
     with c4:
-        metric_card(
-            "Average Latency",
-            latency(row['avg_market_latency']),
-            "⚡"
-        )
+        metric_card("Avg Latency",      latency(row["avg_market_latency"]),  "⚡", color="warning" if row["avg_market_latency"] > 25 else "success")
 
     st.write("")
-
     c5, c6, c7 = st.columns(3)
-
     with c5:
-        metric_card(
-            "Buy Volume",
-            number(row['total_buy_volume']),
-            "🟢"
-        )
-
+        metric_card("Buy Volume",  number(row["total_buy_volume"]),  "🟢", color="success")
     with c6:
-        metric_card(
-            "Sell Volume",
-            number(row['total_sell_volume']),
-            "🔴"
-        )
-
+        metric_card("Sell Volume", number(row["total_sell_volume"]), "🔴", color="error")
     with c7:
-        metric_card(
-            "Average Price",
-            price(row['avg_market_price']),
-            "💵"
-        )
+        metric_card("Avg Price",   price(row["avg_market_price"]),  "💵", color="primary")
 
-    st.info(f"🕒 Last Updated: {row['updated_at']}")
-
+    st.markdown(
+        f'<div style="color:#8B949E;font-size:0.78rem;margin-top:4px;">🕒 Last Updated: {row["updated_at"]}</div>',
+        unsafe_allow_html=True,
+    )
     st.divider()
 
-    # ==========================================
-    # Charts
-    # ==========================================
-
-    st.subheader("📊 Market Analytics")
-
+    # ── Charts ────────────────────────────────────────────
+    section_header("📊 Market Analytics")
     left, right = st.columns(2)
 
-    with left:
-
-        st.plotly_chart(
-            top_symbols_chart(top_symbols),
-            use_container_width=True,
-            config=PLOTLY_CONFIG
-        )
+    if not top_df.empty:
+        with left:
+            st.plotly_chart(top_symbols_chart(top_df), use_container_width=True, config=PLOTLY_CONFIG)
+    else:
+        with left:
+            st.info("Top symbols data not yet available.")
 
     with right:
+        st.plotly_chart(buy_sell_chart(market_df), use_container_width=True, config=PLOTLY_CONFIG)
 
-        st.plotly_chart(
-            buy_sell_chart(market_df),
-            use_container_width=True,
-            config=PLOTLY_CONFIG
-        )
+    if not ohlc_df.empty:
+        st.divider()
+        section_header("📈 Volume Timeline (OHLC windows)")
+        timeline_df = ohlc_df.groupby("window_start", as_index=False)["total_volume"].sum()
+        st.plotly_chart(volume_timeline(timeline_df), use_container_width=True, config=PLOTLY_CONFIG)
 
     st.divider()
 
-    # ==========================================
-    # Leaderboard
-    # ==========================================
+    # ── Leaderboard ───────────────────────────────────────
+    section_header("🏆 Market Leaderboard")
 
-    st.subheader("🏆 Market Leaderboard")
+    if not top_df.empty:
+        lb = top_df[["volume_rank","stock_symbol","latest_price","total_volume","buy_volume","sell_volume","vwap"]].copy()
+        lb.columns = ["Rank","Symbol","Price","Volume","Buy Vol","Sell Vol","VWAP"]
+        lb["Buy %"]  = (lb["Buy Vol"]  / lb["Volume"] * 100).round(1).astype(str) + "%"
+        lb["Sell %"] = (lb["Sell Vol"] / lb["Volume"] * 100).round(1).astype(str) + "%"
+        st.dataframe(lb, hide_index=True, use_container_width=True)
+    else:
+        st.info("Leaderboard data not yet available.")
 
-    leaderboard = top_symbols[
-        [
-            "volume_rank",
-            "stock_symbol",
-            "latest_price",
-            "total_volume",
-            "buy_volume",
-            "sell_volume",
-            "vwap"
-        ]
-    ].rename(
-        columns={
-            "volume_rank": "Rank",
-            "stock_symbol": "Symbol",
-            "latest_price": "Price",
-            "total_volume": "Volume",
-            "buy_volume": "Buy Volume",
-            "sell_volume": "Sell Volume",
-            "vwap": "VWAP"
-        }
-    )
+    # ── Activity Feed ─────────────────────────────────────
+    if not ohlc_df.empty:
+        st.divider()
+        section_header("🔴 Live Activity Feed (Recent OHLC Windows)")
+        feed = ohlc_df.sort_values("window_start", ascending=False).head(10)[
+            ["window_start","stock_symbol","open_price","high_price","low_price","close_price","total_volume"]
+        ].rename(columns={
+            "window_start":"Time","stock_symbol":"Symbol",
+            "open_price":"Open","high_price":"High","low_price":"Low",
+            "close_price":"Close","total_volume":"Volume",
+        })
+        st.dataframe(feed, hide_index=True, use_container_width=True)
 
-    st.dataframe(
-        leaderboard,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    # ==========================================
-    # Raw Data
-    # ==========================================
-
-    with st.expander("🔍 View Raw Data"):
-
-        st.dataframe(
-            market_df,
-            hide_index=True,
-            use_container_width=True
-        )
-    
+    st.divider()
     render_notifications()
+    st.markdown("</div>", unsafe_allow_html=True)

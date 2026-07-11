@@ -1,276 +1,69 @@
 import streamlit as st
 import pandas as pd
+from log_metrics import containers, logs
+from components.cards import section_header, metric_card, page_title
 
-from log_metrics import (
-    containers,
-    logs
-)
-
+LEVEL_COLORS = {
+    "ERROR":   "#FF5252",
+    "WARNING": "#FACC15",
+    "SUCCESS": "#00E676",
+    "INFO":    "#8B949E",
+}
 
 def render():
+    page_title("📜 Live Logs", "Container Log Feed — Real-time")
 
-    st.title("📜 Live Logs")
-
-    st.caption(
-        "Real-time logs from all pipeline services"
-    )
-
-    # =====================================================
-    # Sidebar Filters
-    # =====================================================
-
-    left, middle, right = st.columns([2, 2, 3])
-
-    with left:
-
-        service = st.selectbox(
-
-            "Service",
-
-            containers()
-
+    # ── Filters ───────────────────────────────────────────
+    container_list = containers()
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        service = st.selectbox("📦 Service", container_list)
+    with col2:
+        level_filter = st.multiselect(
+            "🎚 Log Level",
+            ["INFO", "WARNING", "ERROR", "SUCCESS"],
+            default=["INFO", "WARNING", "ERROR", "SUCCESS"],
         )
+    with col3:
+        lines = st.number_input("Lines", min_value=10, max_value=200, value=50, step=10)
 
-    with middle:
-
-        level = st.selectbox(
-
-            "Log Level",
-
-            [
-
-                "ALL",
-
-                "INFO",
-
-                "WARNING",
-
-                "ERROR",
-
-                "SUCCESS"
-
-            ]
-
-        )
-
-    with right:
-
-        search = st.text_input(
-
-            "Search"
-
-        )
+    if st.button("🔄 Refresh Logs", type="primary"):
+        st.cache_data.clear()
 
     st.divider()
 
-    # =====================================================
-    # Load Logs
-    # =====================================================
-
-    df = pd.DataFrame(
-
-        logs(service)
-
-    )
+    # ── Fetch & Parse ─────────────────────────────────────
+    from log_metrics import CONTAINERS, container_logs, parse_logs
+    raw  = container_logs(CONTAINERS.get(service, service), lines=int(lines))
+    data = parse_logs(raw)
+    df   = pd.DataFrame(data)
 
     if df.empty:
-
-        st.warning(
-            "No logs available."
-        )
-
+        st.info("No log entries found.")
         return
 
-    # =====================================================
-    # Filtering
-    # =====================================================
-
-    if level != "ALL":
-
-        df = df[
-
-            df["Level"] == level
-
-        ]
-
-    if search:
-
-        df = df[
-
-            df["Message"]
-
-            .str.contains(
-
-                search,
-
-                case=False,
-
-                na=False
-
-            )
-
-        ]
-
-    # =====================================================
-    # Statistics
-    # =====================================================
-
-    st.subheader("📊 Log Statistics")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-
-        st.metric(
-
-            "Total",
-
-            len(df)
-
-        )
-
-    with c2:
-
-        st.metric(
-
-            "Errors",
-
-            len(
-
-                df[
-
-                    df["Level"] == "ERROR"
-
-                ]
-
-            )
-
-        )
-
-    with c3:
-
-        st.metric(
-
-            "Warnings",
-
-            len(
-
-                df[
-
-                    df["Level"] == "WARNING"
-
-                ]
-
-            )
-
-        )
-
-    with c4:
-
-        st.metric(
-
-            "Info",
-
-            len(
-
-                df[
-
-                    df["Level"] == "INFO"
-
-                ]
-
-            )
-
-        )
+    # ── Stats ─────────────────────────────────────────────
+    section_header(f"📊 Log Summary — {service}")
+    counts = df["Level"].value_counts().to_dict()
+    k1, k2, k3, k4 = st.columns(4)
+    with k1: metric_card("Total Lines", str(len(df)),             "📜")
+    with k2: metric_card("Errors",   str(counts.get("ERROR",0)), "🔴", color="error"   if counts.get("ERROR",0)   else "primary")
+    with k3: metric_card("Warnings", str(counts.get("WARNING",0)),"⚠", color="warning" if counts.get("WARNING",0) else "primary")
+    with k4: metric_card("Info",     str(counts.get("INFO",0)),   "ℹ")
 
     st.divider()
 
-    # =====================================================
-    # Download
-    # =====================================================
+    # ── Filtered Table ────────────────────────────────────
+    section_header("📋 Log Entries")
+    filtered = df[df["Level"].isin(level_filter)] if level_filter else df
 
-    st.download_button(
-
-        "⬇ Download Logs",
-
-        df.to_csv(
-
-            index=False
-
-        ),
-
-        file_name=f"{service.lower()}_logs.csv",
-
-        mime="text/csv"
-
-    )
-
-    st.divider()
-
-    # =====================================================
-    # Table
-    # =====================================================
-
-    st.subheader("📋 Log Viewer")
+    def colorize_row(row):
+        color = LEVEL_COLORS.get(row["Level"], "#8B949E")
+        return [f"color: {color}"] * len(row)
 
     st.dataframe(
-
-        df,
-
+        filtered.style.apply(colorize_row, axis=1),
         hide_index=True,
-
         use_container_width=True,
-
-        height=550
-
+        height=500,
     )
-
-    st.divider()
-
-    # =====================================================
-    # Live Tail
-    # =====================================================
-
-    st.subheader("🖥 Live Tail")
-
-    with st.container(
-
-        border=True
-
-    ):
-
-        latest = df.tail(15)
-
-        for _, row in latest.iterrows():
-
-            if row["Level"] == "ERROR":
-
-                st.error(
-
-                    f"[{row['Time']}] {row['Message']}"
-
-                )
-
-            elif row["Level"] == "WARNING":
-
-                st.warning(
-
-                    f"[{row['Time']}] {row['Message']}"
-
-                )
-
-            elif row["Level"] == "SUCCESS":
-
-                st.success(
-
-                    f"[{row['Time']}] {row['Message']}"
-
-                )
-
-            else:
-
-                st.text(
-
-                    f"[{row['Time']}] {row['Message']}"
-
-                )

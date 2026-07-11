@@ -1,343 +1,85 @@
 import streamlit as st
-import plotly.express as px
-
-from db import get_top_symbols
-from components.cards import metric_card
-
-from notifications import render_notifications
-
-
-PLOTLY_CONFIG = {
-    "displaylogo": False,
-    "responsive": True,
-    "modeBarButtonsToRemove": [
-        "lasso2d",
-        "select2d"
-    ]
-}
-
+from db import get_top_symbols, get_symbol_summary
+from components.cards import metric_card, section_header, page_title
+from components.charts import top_symbols_chart, vwap_chart, market_share_chart
+from formatter import number, price
+from config import PLOTLY_CONFIG
 
 def render():
+    page_title("🏆 Top Symbols", "Volume-Ranked Market Leaders")
 
-    st.title("🏆 Top Symbols")
-    st.caption("Market leaders ranked by trading volume")
-
-    # ==================================================
-    # Load Data
-    # ==================================================
-
-    df = get_top_symbols()
-
-    if df.empty:
-        st.warning("No Top Symbols data available.")
+    top_df = get_top_symbols()
+    if top_df.empty:
+        st.warning("⏳ No top symbols data yet.")
         return
 
-    df = df.sort_values("volume_rank")
+    # ── Filters ───────────────────────────────────────────
+    col_f1, col_f2, col_f3 = st.columns([3, 2, 2])
+    with col_f1:
+        search = st.text_input("🔍 Search symbol", placeholder="e.g. AAPL")
+    with col_f2:
+        if len(top_df) > 5:
+            top_n = st.slider("Top N symbols", min_value=5, max_value=len(top_df), value=min(10, len(top_df)), step=5)
+        else:
+            top_n = len(top_df)
+            st.info(f"Showing all {top_n} symbols")
+    with col_f3:
+        sort_by = st.selectbox("Sort by", ["Volume", "VWAP", "Buy Volume", "Sell Volume"], index=0)
 
-    # ==================================================
-    # KPI Cards
-    # ==================================================
+    sort_col_map = {"Volume": "total_volume", "VWAP": "vwap", "Buy Volume": "buy_volume", "Sell Volume": "sell_volume"}
+    sort_col = sort_col_map[sort_by]
 
-    st.subheader("📊 Market Leaders")
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        metric_card(
-            "Tracked Symbols",
-            len(df),
-            "📈"
-        )
-
-    with c2:
-        metric_card(
-            "Highest Volume",
-            f"{int(df['total_volume'].max()):,}",
-            "📊"
-        )
-
-    with c3:
-        metric_card(
-            "Highest VWAP",
-            f"${df['vwap'].max():.2f}",
-            "💰"
-        )
-
-    st.divider()
-
-    # ==================================================
-    # Filters
-    # ==================================================
-
-    st.subheader("🔍 Filters")
-
-    f1, f2, f3 = st.columns(3)
-
-    with f1:
-
-        search = st.text_input(
-            "Search Symbol"
-        )
-
-    with f2:
-
-        sort_by = st.selectbox(
-            "Sort By",
-            [
-                "Volume",
-                "VWAP",
-                "Price"
-            ]
-        )
-
-    with f3:
-
-        min_volume = st.slider(
-            "Minimum Volume",
-            0,
-            int(df["total_volume"].max()),
-            0
-        )
-
-    # ==================================================
-    # Apply Filters
-    # ==================================================
-
-    filtered = df.copy()
-
+    filtered = top_df.copy()
     if search:
-
-        filtered = filtered[
-            filtered["stock_symbol"]
-            .str.contains(
-                search.upper(),
-                case=False,
-                na=False
-            )
-        ]
-
-    filtered = filtered[
-        filtered["total_volume"] >= min_volume
-    ]
-
-    mapping = {
-        "Volume": "total_volume",
-        "VWAP": "vwap",
-        "Price": "latest_price"
-    }
-
-    filtered = filtered.sort_values(
-        mapping[sort_by],
-        ascending=False
-    )
-
-    if filtered.empty:
-        st.warning("No symbols match the selected filters.")
-        return
-
-    st.info(f"Displaying {len(filtered)} symbol(s)")
+        filtered = filtered[filtered["stock_symbol"].str.upper().str.contains(search.upper())]
+    filtered = filtered.sort_values(sort_col, ascending=False).head(top_n)
 
     st.divider()
 
-    # ==================================================
-    # Charts
-    # ==================================================
-
-    left, right = st.columns(2)
-
-    with left:
-
-        bar = px.bar(
-
-            filtered,
-
-            x="total_volume",
-
-            y="stock_symbol",
-
-            orientation="h",
-
-            color="total_volume",
-
-            color_continuous_scale="Viridis",
-
-            text="total_volume",
-
-            template="plotly_dark"
-
-        )
-
-        bar.update_traces(
-            texttemplate="%{text:,.0f}",
-            textposition="outside"
-        )
-
-        bar.update_layout(
-
-            title="Trading Volume",
-
-            xaxis_title="Volume",
-
-            yaxis_title="",
-
-            height=500
-
-        )
-
-        st.plotly_chart(
-            bar,
-            use_container_width=True,
-            config=PLOTLY_CONFIG
-        )
-
-    with right:
-
-        pie = px.pie(
-
-            filtered,
-
-            names="stock_symbol",
-
-            values="total_volume",
-
-            hole=0.55,
-
-            template="plotly_dark"
-
-        )
-
-        pie.update_layout(
-            title="Market Share",
-            height=500
-        )
-
-        st.plotly_chart(
-            pie,
-            use_container_width=True,
-            config=PLOTLY_CONFIG
-        )
+    # ── Summary KPIs ─────────────────────────────────────
+    section_header("📊 Summary")
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        metric_card("Symbols", number(len(top_df)), "📈")
+    with k2:
+        metric_card("Total Volume", number(int(top_df["total_volume"].sum())), "📊")
+    with k3:
+        top_sym = top_df.iloc[0]["stock_symbol"] if not top_df.empty else "—"
+        metric_card("Top Symbol", top_sym, "🥇", color="success")
+    with k4:
+        avg_vwap = round(top_df["vwap"].mean(), 2)
+        metric_card("Avg VWAP", price(avg_vwap), "💰")
 
     st.divider()
 
-    # ==================================================
-    # VWAP Comparison
-    # ==================================================
+    # ── Charts ────────────────────────────────────────────
+    section_header("📊 Visual Analysis")
+    l, r = st.columns(2)
+    with l:
+        st.plotly_chart(top_symbols_chart(filtered, n=top_n), use_container_width=True, config=PLOTLY_CONFIG)
+    with r:
+        st.plotly_chart(market_share_chart(filtered), use_container_width=True, config=PLOTLY_CONFIG)
 
-    st.subheader("💰 VWAP Comparison")
-
-    vwap = px.bar(
-
-        filtered,
-
-        x="stock_symbol",
-
-        y="vwap",
-
-        color="vwap",
-
-        color_continuous_scale="Blues",
-
-        text="vwap",
-
-        template="plotly_dark"
-
-    )
-
-    vwap.update_traces(
-        texttemplate="$%{text:.2f}",
-        textposition="outside"
-    )
-
-    vwap.update_layout(
-
-        height=420,
-
-        xaxis_title="",
-
-        yaxis_title="VWAP ($)"
-
-    )
-
-    st.plotly_chart(
-        vwap,
-        use_container_width=True,
-        config=PLOTLY_CONFIG
-    )
+    st.divider()
+    section_header("💰 VWAP Comparison")
+    st.plotly_chart(vwap_chart(filtered), use_container_width=True, config=PLOTLY_CONFIG)
 
     st.divider()
 
-    # ==================================================
-    # Summary Statistics
-    # ==================================================
+    # ── Ranked Table ─────────────────────────────────────
+    section_header("📋 Ranked Table")
+    table = filtered[[
+        "volume_rank","stock_symbol","latest_price","total_volume",
+        "buy_volume","sell_volume","vwap","updated_at"
+    ]].copy()
 
-    st.subheader("📊 Summary")
+    table["Buy %"]  = (table["buy_volume"]  / table["total_volume"] * 100).round(1).astype(str) + "%"
+    table["Sell %"] = (table["sell_volume"] / table["total_volume"] * 100).round(1).astype(str) + "%"
+    table.rename(columns={
+        "volume_rank": "Rank", "stock_symbol": "Symbol",
+        "latest_price": "Price", "total_volume": "Volume",
+        "buy_volume": "Buy Vol", "sell_volume": "Sell Vol",
+        "vwap": "VWAP", "updated_at": "Updated",
+    }, inplace=True)
 
-    s1, s2, s3 = st.columns(3)
-
-    with s1:
-        st.metric(
-            "Average Price",
-            f"${filtered['latest_price'].mean():.2f}"
-        )
-
-    with s2:
-        st.metric(
-            "Average VWAP",
-            f"${filtered['vwap'].mean():.2f}"
-        )
-
-    with s3:
-        st.metric(
-            "Total Volume",
-            f"{int(filtered['total_volume'].sum()):,}"
-        )
-
-    st.divider()
-
-    # ==================================================
-    # Leaderboard
-    # ==================================================
-
-    st.subheader("🏅 Leaderboard")
-
-    leaderboard = filtered[
-        [
-            "volume_rank",
-            "stock_symbol",
-            "latest_price",
-            "total_volume",
-            "buy_volume",
-            "sell_volume",
-            "vwap"
-        ]
-    ].rename(
-        columns={
-            "volume_rank": "Rank",
-            "stock_symbol": "Symbol",
-            "latest_price": "Latest Price",
-            "total_volume": "Total Volume",
-            "buy_volume": "Buy Volume",
-            "sell_volume": "Sell Volume",
-            "vwap": "VWAP"
-        }
-    )
-
-    st.dataframe(
-        leaderboard,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    # ==================================================
-    # Raw Data
-    # ==================================================
-
-    with st.expander("📄 View Raw Dataset"):
-
-        st.dataframe(
-            filtered,
-            hide_index=True,
-            use_container_width=True
-        )
-    
-    render_notifications()
+    st.dataframe(table, hide_index=True, use_container_width=True)

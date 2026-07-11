@@ -1,370 +1,84 @@
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-
 from performance_metrics import (
-    pipeline_performance,
-    resource_performance,
-    stage_throughput,
-    pipeline_latency,
-    availability,
-    recovery_metrics,
-    trend,
-    benchmark_score
+    benchmark_score, pipeline_performance, resource_performance,
+    stage_throughput, pipeline_latency, availability,
 )
-
-from components.cards import metric_card
-
-
-def line_chart(title, x, y, ylabel):
-
-    fig = go.Figure()
-
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=y,
-            mode="lines",
-            line=dict(width=3),
-            fill="tozeroy"
-        )
-    )
-
-    fig.update_layout(
-        title=title,
-        template="plotly_dark",
-        height=350,
-        margin=dict(
-            l=20,
-            r=20,
-            t=60,
-            b=20
-        ),
-        xaxis_title="Time",
-        yaxis_title=ylabel
-    )
-
-    return fig
-
+from components.cards import metric_card, score_card, section_header, page_title
+from components.charts import radar_chart, stage_throughput_chart, gauge_chart
+from config import PLOTLY_CONFIG
 
 def render():
+    page_title("📊 Performance Benchmark", "System Performance Analysis & Scoring")
 
-    st.title("📊 Performance Benchmark")
-
-    st.caption(
-        "Performance analysis of the real-time stock analytics pipeline"
-    )
-
-    # =====================================================
-    # Load Metrics
-    # =====================================================
-
-    performance = pipeline_performance()
-
-    resources = resource_performance()
-
-    throughput = stage_throughput()
-
+    bscore  = benchmark_score()
+    perf    = pipeline_performance()
+    res     = resource_performance()
+    stages  = stage_throughput()
     latency = pipeline_latency()
-
-    recovery = recovery_metrics()
-
-    uptime = availability()
-
-    trends = trend()
-
-    score = benchmark_score()
-
-    # =====================================================
-    # Executive KPIs
-    # =====================================================
-
-    st.subheader("📈 Executive Overview")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        metric_card(
-            "Throughput",
-            f"{performance['throughput']:,} msg/s",
-            "🚀"
-        )
-
-    with c2:
-        metric_card(
-            "Latency",
-            f"{performance['latency']:.2f} ms",
-            "⚡"
-        )
-
-    with c3:
-        metric_card(
-            "Availability",
-            f"{performance['availability']}%",
-            "🟢"
-        )
-
-    with c4:
-        metric_card(
-            "Recovery",
-            f"{performance['recovery']:.2f} sec",
-            "♻️"
-        )
+    avail   = availability()
 
     st.divider()
 
-    # =====================================================
-    # Benchmark Score
-    # =====================================================
-
-    st.subheader("🏆 Pipeline Score")
-
-    left, right = st.columns([1, 2])
-
-    with left:
-
-        st.metric(
-            "Score",
-            f"{score['score']}/100"
+    # ── Benchmark Score ───────────────────────────────────
+    col_score, col_metrics = st.columns([1, 2])
+    with col_score:
+        section_header("🏆 Benchmark Score")
+        score_card(bscore["score"], bscore["rating"], bscore["stars"])
+        st.markdown(
+            f'<div style="color:#8B949E;font-size:0.75rem;text-align:center;margin-top:6px;">'
+            f'Generated: {bscore["generated"].strftime("%H:%M:%S")}</div>',
+            unsafe_allow_html=True,
         )
 
-        st.metric(
-            "Rating",
-            score["rating"]
-        )
-
-        st.success(score["stars"])
-
-    with right:
-
-        st.progress(score["score"] / 100)
-
-        st.info(
-            f"""
-Generated
-
-{score['generated'].strftime('%d %b %Y %H:%M:%S')}
-"""
-        )
+    with col_metrics:
+        section_header("⚡ Pipeline KPIs")
+        k1, k2 = st.columns(2)
+        with k1:
+            metric_card("Throughput",   f'{perf["throughput"]:,}',   "📊")
+            metric_card("CPU Usage",    f'{res["cpu"]}%',             "🖥",
+                        color="warning" if res["cpu"] > 80 else "primary")
+        with k2:
+            metric_card("Avg Latency",  f'{perf["latency"]} ms',     "⚡",
+                        color="warning" if perf["latency"] > 25 else "success")
+            metric_card("Disk Usage",   f'{res["disk"]}%',            "💾",
+                        color="warning" if res["disk"] > 80 else "primary")
 
     st.divider()
 
-    # =====================================================
-    # Resource Utilization
-    # =====================================================
-
-    st.subheader("💻 Resource Usage")
-
-    r1, r2, r3 = st.columns(3)
-
-    with r1:
-
-        st.metric(
-            "CPU",
-            f"{resources['cpu']}%"
-        )
-
-        st.progress(resources["cpu"] / 100)
-
-    with r2:
-
-        st.metric(
-            "Memory",
-            f"{resources['memory']}%"
-        )
-
-        st.progress(resources["memory"] / 100)
-
-    with r3:
-
-        st.metric(
-            "Disk",
-            f"{resources['disk']}%"
-        )
-
-        st.progress(resources["disk"] / 100)
+    # ── Radar Chart ───────────────────────────────────────
+    section_header("🕸 Performance Radar")
+    radar_cats = ["CPU", "Memory", "Disk", "Throughput", "Latency Score", "Recovery"]
+    cpu_score     = max(0, 100 - res["cpu"])
+    mem_score     = max(0, 100 - res["memory"])
+    disk_score    = max(0, 100 - res["disk"])
+    tput_score    = min(100, perf["throughput"] / 1000)
+    lat_score     = max(0, 100 - perf["latency"] * 2)
+    recovery_score= max(0, 100 - perf.get("recovery", 0) * 10)
+    radar_vals = [cpu_score, mem_score, disk_score, tput_score, lat_score, recovery_score]
+    st.plotly_chart(radar_chart(radar_cats, radar_vals, "System Performance Radar"), use_container_width=True, config=PLOTLY_CONFIG)
 
     st.divider()
 
-    # =====================================================
-    # Charts
-    # =====================================================
-
-    st.subheader("📈 Performance Trends")
-
-    left, right = st.columns(2)
-
-    with left:
-
-        st.plotly_chart(
-            line_chart(
-                "Pipeline Throughput",
-                trends["time"],
-                trends["throughput"],
-                "Messages/sec"
-            ),
-            use_container_width=True
-        )
-
-    with right:
-
-        st.plotly_chart(
-            line_chart(
-                "Pipeline Latency",
-                trends["time"],
-                trends["latency"],
-                "Latency (ms)"
-            ),
-            use_container_width=True
-        )
-
-    left, right = st.columns(2)
-
-    with left:
-
-        st.plotly_chart(
-            line_chart(
-                "CPU Utilization",
-                trends["time"],
-                trends["cpu"],
-                "%"
-            ),
-            use_container_width=True
-        )
-
-    with right:
-
-        st.plotly_chart(
-            line_chart(
-                "Recovery Time",
-                trends["time"],
-                trends["recovery"],
-                "Seconds"
-            ),
-            use_container_width=True
-        )
+    # ── Stage Throughput ─────────────────────────────────
+    section_header("📈 Pipeline Stage Throughput")
+    st.plotly_chart(stage_throughput_chart(stages), use_container_width=True, config=PLOTLY_CONFIG)
 
     st.divider()
 
-    # =====================================================
-    # Stage Throughput
-    # =====================================================
-
-    st.subheader("🚀 Stage Throughput")
-
-    throughput_df = pd.DataFrame({
-
-        "Stage": throughput.keys(),
-
-        "Messages/sec": throughput.values()
-
-    })
-
-    st.bar_chart(
-        throughput_df,
-        x="Stage",
-        y="Messages/sec",
-        use_container_width=True
-    )
+    # ── Latency Breakdown ─────────────────────────────────
+    section_header("⏱ Pipeline Latency Breakdown (ms)")
+    cols = st.columns(len(latency))
+    for col, (stage, ms) in zip(cols, latency.items()):
+        with col:
+            metric_card(stage, f"{ms} ms", "⚡", color="success" if ms < 10 else "warning")
 
     st.divider()
 
-    # =====================================================
-    # Pipeline Latency
-    # =====================================================
-
-    st.subheader("⚡ Stage Latency")
-
-    latency_df = pd.DataFrame({
-
-        "Stage": latency.keys(),
-
-        "Latency (ms)": latency.values()
-
-    })
-
-    st.dataframe(
-        latency_df,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # =====================================================
-    # Availability
-    # =====================================================
-
-    st.subheader("🟢 Service Availability")
-
-    availability_df = pd.DataFrame({
-
-        "Service": uptime.keys(),
-
-        "Availability (%)": uptime.values()
-
-    })
-
-    st.dataframe(
-        availability_df,
-        hide_index=True,
-        use_container_width=True
-    )
-
-    st.divider()
-
-    # =====================================================
-    # Recovery Statistics
-    # =====================================================
-
-    st.subheader("♻️ Recovery Statistics")
-
-    a, b, c, d = st.columns(4)
-
-    with a:
-        st.metric(
-            "Avg Recovery",
-            f"{recovery['avg_recovery']} sec"
-        )
-
-    with b:
-        st.metric(
-            "Max Recovery",
-            f"{recovery['max_recovery']} sec"
-        )
-
-    with c:
-        st.metric(
-            "Successful Retries",
-            recovery["successful_retries"]
-        )
-
-    with d:
-        st.metric(
-            "Failed Retries",
-            recovery["failed_retries"]
-        )
-
-    st.divider()
-
-    # =====================================================
-    # Summary
-    # =====================================================
-
-    if score["score"] >= 90:
-
-        st.success(
-            "✅ Pipeline performance is excellent."
-        )
-
-    elif score["score"] >= 75:
-
-        st.warning(
-            "⚠ Pipeline is healthy but has room for optimization."
-        )
-
-    else:
-
-        st.error(
-            "❌ Pipeline requires optimization."
-        )
+    # ── Service Availability ──────────────────────────────
+    section_header("✅ Service Availability")
+    import pandas as pd
+    avail_df = pd.DataFrame([
+        {"Service": svc, "Availability": f"{pct}%", "Status": "🟢 Online" if pct == 100 else "🔴 Offline"}
+        for svc, pct in avail.items()
+    ])
+    st.dataframe(avail_df, hide_index=True, use_container_width=True)

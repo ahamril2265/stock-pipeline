@@ -1,127 +1,112 @@
-import random
+import os
 from datetime import datetime, UTC, timedelta
+
+import clickhouse_connect
+import requests
+
+# ==========================================================
+# ClickHouse Client
+# ==========================================================
+
+def _ch_client():
+    return clickhouse_connect.get_client(
+        host=os.getenv("CLICKHOUSE_HOST", "clickhouse"),
+        port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
+        username=os.getenv("CLICKHOUSE_USER", "admin"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", "admin123"),
+        database=os.getenv("CLICKHOUSE_DATABASE", "stock_analytics"),
+    )
+
+def _scalar(client, sql, default=0):
+    try:
+        result = client.query(sql)
+        if result.result_rows and result.result_rows[0][0] is not None:
+            return result.result_rows[0][0]
+    except Exception:
+        pass
+    return default
 
 
 # ==========================================================
-# Recovery KPIs
+# Recovery KPIs  (derived from gold table health)
 # ==========================================================
 
 def get_recovery_metrics():
-
-    recovered = random.randint(120, 180)
-
-    retries = random.randint(0, 8)
-
-    dlq = random.randint(0, 2)
-
-    success = round(
-        recovered /
-        (recovered + retries + dlq)
-        * 100,
-        2
-    )
-
-    return {
-
-        "recovered_messages": recovered,
-
-        "retry_queue": retries,
-
-        "dead_letter_queue": dlq,
-
-        "recovery_success": success
-
-    }
+    try:
+        client = _ch_client()
+        rows_kpis   = _scalar(client, "SELECT count() FROM gold_market_kpis")
+        rows_sym    = _scalar(client, "SELECT count() FROM gold_symbol_summary")
+        rows_top    = _scalar(client, "SELECT count() FROM gold_top_symbols")
+        rows_ohlc   = _scalar(client, "SELECT count() FROM gold_ohlc")
+        total_gold  = rows_kpis + rows_sym + rows_top + rows_ohlc
+        recovered   = total_gold
+        rejected    = 0
+        success_pct = 100.0 if total_gold > 0 else 0.0
+        return {
+            "recovered_messages": recovered,
+            "retry_queue": 0,
+            "dead_letter_queue": rejected,
+            "recovery_success": success_pct,
+        }
+    except Exception:
+        return {
+            "recovered_messages": 0,
+            "retry_queue": 0,
+            "dead_letter_queue": 0,
+            "recovery_success": 0.0,
+        }
 
 
 # ==========================================================
-# Bronze Layer
+# Bronze Layer  (derived from gold freshness proxy)
 # ==========================================================
 
 def bronze_status():
-
-    return {
-
-        "records": random.randint(
-            45000,
-            55000
-        ),
-
-        "latest_write":
-
-            datetime.now(
-                UTC
-            ) - timedelta(
-                seconds=random.randint(
-                    1,
-                    5
-                )
-            ),
-
-        "checkpoint": True,
-
-        "quarantined":
-
-            random.randint(
-                0,
-                3
-            ),
-
-        "latency":
-
-            round(
-                random.uniform(
-                    0.2,
-                    1.4
-                ),
-                2
-            )
-
-    }
+    try:
+        client = _ch_client()
+        latest = _scalar(client, "SELECT max(updated_at) FROM gold_market_kpis")
+        rows   = _scalar(client, "SELECT count() FROM gold_market_kpis")
+        return {
+            "records": rows,
+            "latest_write": latest if latest else datetime.now(UTC),
+            "checkpoint": rows > 0,
+            "quarantined": 0,
+            "latency": 0.0,
+        }
+    except Exception:
+        return {
+            "records": 0,
+            "latest_write": None,
+            "checkpoint": False,
+            "quarantined": 0,
+            "latency": 0.0,
+        }
 
 
 # ==========================================================
-# Silver Layer
+# Silver Layer  (derived from symbol summary)
 # ==========================================================
 
 def silver_status():
-
-    return {
-
-        "processed":
-
-            random.randint(
-                30000,
-                45000
-            ),
-
-        "duplicates":
-
-            random.randint(
-                0,
-                8
-            ),
-
-        "rejected":
-
-            random.randint(
-                0,
-                3
-            ),
-
-        "checkpoint": True,
-
-        "latency":
-
-            round(
-                random.uniform(
-                    0.4,
-                    1.8
-                ),
-                2
-            )
-
-    }
+    try:
+        client = _ch_client()
+        processed = _scalar(client, "SELECT count() FROM gold_symbol_summary")
+        ohlc_rows = _scalar(client, "SELECT count() FROM gold_ohlc")
+        return {
+            "processed": processed + ohlc_rows,
+            "duplicates": 0,
+            "rejected": 0,
+            "checkpoint": processed > 0,
+            "latency": 0.0,
+        }
+    except Exception:
+        return {
+            "processed": 0,
+            "duplicates": 0,
+            "rejected": 0,
+            "checkpoint": False,
+            "latency": 0.0,
+        }
 
 
 # ==========================================================
@@ -129,265 +114,114 @@ def silver_status():
 # ==========================================================
 
 def gold_status():
-
-    return {
-
-        "tables": 4,
-
-        "rows":
-
-            random.randint(
-                800,
-                1300
-            ),
-
-        "refresh":
-
-            datetime.now(
-                UTC
-            ) - timedelta(
-                seconds=random.randint(
-                    1,
-                    8
-                )
-            ),
-
-        "failures":
-
-            random.randint(
-                0,
-                1
-            )
-
-    }
+    try:
+        client = _ch_client()
+        r_kpis = _scalar(client, "SELECT count() FROM gold_market_kpis")
+        r_sym  = _scalar(client, "SELECT count() FROM gold_symbol_summary")
+        r_top  = _scalar(client, "SELECT count() FROM gold_top_symbols")
+        r_ohlc = _scalar(client, "SELECT count() FROM gold_ohlc")
+        latest = _scalar(client, "SELECT max(updated_at) FROM gold_market_kpis")
+        total_rows = r_kpis + r_sym + r_top + r_ohlc
+        failures = 0 if total_rows > 0 else 1
+        return {
+            "tables": 4,
+            "rows": total_rows,
+            "refresh": latest if latest else None,
+            "failures": failures,
+        }
+    except Exception:
+        return {"tables": 4, "rows": 0, "refresh": None, "failures": 1}
 
 
 # ==========================================================
-# Pipeline Flow
+# Pipeline Flow  (live service health)
 # ==========================================================
 
 def pipeline_flow():
+    try:
+        from health import all_services
+        services = all_services()
+    except Exception:
+        services = {}
+
+    kafka_ok  = services.get("Kafka", False)
+    spark_ok  = services.get("Spark", False)
+    ch_ok     = services.get("ClickHouse", False)
+
+    gold = gold_status()
+    gold_ok = gold["rows"] > 0
 
     return [
-
-        {
-
-            "name": "Producer",
-
-            "healthy": True
-
-        },
-
-        {
-
-            "name": "Kafka",
-
-            "healthy": True
-
-        },
-
-        {
-
-            "name": "Bronze",
-
-            "healthy": True
-
-        },
-
-        {
-
-            "name": "Silver",
-
-            "healthy": True
-
-        },
-
-        {
-
-            "name": "Gold",
-
-            "healthy": True
-
-        },
-
-        {
-
-            "name": "Dashboard",
-
-            "healthy": True
-
-        }
-
+        {"name": "Producer",    "healthy": kafka_ok},
+        {"name": "Kafka",       "healthy": kafka_ok},
+        {"name": "Bronze",      "healthy": spark_ok and kafka_ok},
+        {"name": "Silver",      "healthy": spark_ok},
+        {"name": "Gold",        "healthy": gold_ok},
+        {"name": "ClickHouse",  "healthy": ch_ok},
+        {"name": "Dashboard",   "healthy": True},
     ]
 
 
 # ==========================================================
-# Failure Events
+# Failure Events  (real unhealthy services)
 # ==========================================================
 
 def failure_events():
+    try:
+        from health import all_services
+        services = all_services()
+    except Exception:
+        return []
 
     now = datetime.now(UTC)
-
-    return [
-
-        {
-
-            "time":
-
-                now -
-
-                timedelta(minutes=3),
-
-            "component":
-
-                "Spark",
-
-            "event":
-
-                "Executor Lost",
-
-            "status":
-
-                "Recovered"
-
-        },
-
-        {
-
-            "time":
-
-                now -
-
-                timedelta(minutes=2),
-
-            "component":
-
-                "Kafka",
-
-            "event":
-
-                "Broker Timeout",
-
-            "status":
-
-                "Recovered"
-
-        },
-
-        {
-
-            "time":
-
-                now -
-
-                timedelta(minutes=1),
-
-            "component":
-
-                "Bronze",
-
-            "event":
-
-                "Write Retry",
-
-            "status":
-
-                "Recovered"
-
-        }
-
-    ]
+    events = []
+    for service, healthy in services.items():
+        if not healthy:
+            events.append({
+                "time":      now,
+                "component": service,
+                "event":     "Service Unreachable",
+                "status":    "OFFLINE",
+            })
+    return events
 
 
 # ==========================================================
-# Recovery Statistics
+# Recovery Statistics  (from gold layer health)
 # ==========================================================
 
 def recovery_statistics():
-
+    gold = gold_status()
+    has_data = gold["rows"] > 0
     return {
-
-        "avg_recovery":
-
-            round(
-
-                random.uniform(
-                    0.8,
-                    2.2
-                ),
-
-                2
-
-            ),
-
-        "max_recovery":
-
-            round(
-
-                random.uniform(
-                    3,
-                    6
-                ),
-
-                2
-
-            ),
-
-        "total_recoveries":
-
-            random.randint(
-                180,
-                350
-            ),
-
-        "successful_retries":
-
-            random.randint(
-                150,
-                250
-            ),
-
-        "failed_retries":
-
-            random.randint(
-                0,
-                4
-            )
-
+        "avg_recovery": 0.0 if has_data else 5.0,
+        "max_recovery": 0.0 if has_data else 10.0,
+        "total_recoveries": gold["rows"],
+        "successful_retries": gold["rows"],
+        "failed_retries": gold["failures"],
     }
 
 
 # ==========================================================
-# Alerts
+# Alerts  (real service alerts)
 # ==========================================================
 
 def alerts():
+    try:
+        from health import all_services, system_resources
+        services  = all_services()
+        resources = system_resources()
+    except Exception:
+        return []
 
     items = []
-
-    if random.random() < 0.2:
-
-        items.append(
-
-            "⚠ Bronze write latency increased."
-
-        )
-
-    if random.random() < 0.15:
-
-        items.append(
-
-            "⚠ Spark executor restarted."
-
-        )
-
-    if random.random() < 0.10:
-
-        items.append(
-
-            "⚠ Kafka broker recovered."
-
-        )
-
+    for service, healthy in services.items():
+        if not healthy:
+            items.append(f"❌ {service} is OFFLINE.")
+    if resources.get("cpu", 0) > 85:
+        items.append(f"🔥 High CPU: {resources['cpu']}%")
+    if resources.get("memory", 0) > 85:
+        items.append(f"🧠 High Memory: {resources['memory']}%")
+    if resources.get("disk", 0) > 90:
+        items.append(f"💾 Disk critical: {resources['disk']}%")
     return items
