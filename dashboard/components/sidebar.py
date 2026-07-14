@@ -23,6 +23,7 @@ PAGES = {
         "🏗 Architecture",
         "📊 Performance Benchmark",
         "🛡 Failure Recovery",
+        "🚨 Incident & Recovery Center",
     ],
 }
 

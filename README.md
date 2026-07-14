@@ -29,7 +29,7 @@ flowchart LR
 | Analytical Serving | ClickHouse |
 | Orchestration | Apache Airflow |
 | Metadata Store | PostgreSQL 15 |
-| Dashboard | Streamlit 1.46, Plotly 6.2, psutil |
+| Dashboard | Streamlit 1.46, Plotly 6.2, psutil, Docker SDK |
 | Deployment | Docker Compose |
 
 ## Folder Structure
@@ -40,7 +40,7 @@ flowchart LR
 ├── clickhouse/init/          # ClickHouse gold schema SQL
 ├── dashboard/                # Streamlit app — views, components, metrics modules
 │   ├── components/           # cards, charts, sidebar, header, status_bar, footer
-│   ├── views/                # 13 page views
+│   ├── views/                # 14 page views (including Incident & Recovery)
 │   └── assets/style.css      # Premium dark UI (Inter, glassmorphism, animations)
 ├── gold/                     # Gold aggregation utilities
 ├── producer/                 # Avro market event producer
@@ -55,7 +55,7 @@ flowchart LR
 
 Available at **<http://localhost:8501>** after starting the stack.
 
-Auto-refreshes every **30 seconds** using `streamlit-autorefresh`. All data is sourced live from the running services — no hardcoded or randomly generated metrics.
+Auto-refreshes every **15 seconds** using `streamlit-autorefresh`. All data is sourced live from the running services — no hardcoded or randomly generated metrics.
 
 ### Pages
 
@@ -74,6 +74,7 @@ Auto-refreshes every **30 seconds** using `streamlit-autorefresh`. All data is s
 | 📊 Performance Benchmark | ClickHouse + psutil + Spark | Real benchmark score, radar chart, stage throughput, latency breakdown |
 | 🏗 Architecture | `health.py` + static | Horizontal pipeline flow, stack inventory with live status, service links |
 | 📜 Live Logs | `docker logs` subprocess | Service selector, level filter, color-coded log table |
+| 🚨 Incident & Recovery Center | Docker SDK + `health.py` | Chaos testing injection, automated background service recovery, incident timeline |
 
 ### Live Data Sources
 
@@ -88,6 +89,7 @@ Auto-refreshes every **30 seconds** using `streamlit-autorefresh`. All data is s
 | Host System | `psutil` CPU, memory, disk |
 | Schema Registry | `GET http://schema-registry:8081/subjects` |
 | Container Logs | `docker logs --tail N <container>` |
+| Chaos & Recovery | `docker.from_env()` via mounted socket |
 
 ## Setup
 

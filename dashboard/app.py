@@ -10,7 +10,7 @@ st.set_page_config(
 
 # ── Auto-Refresh ──────────────────────────────────────────────────────────────
 from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=30_000, key="global_refresh")
+st_autorefresh(interval=15_000, key="global_refresh")
 
 # ── Imports ───────────────────────────────────────────────────────────────────
 from components.sidebar    import render as sidebar
@@ -31,6 +31,7 @@ from views.storage_monitor      import render as storage_monitor
 from views.logs_monitor         import render as logs_monitor
 from views.architecture         import render as architecture
 from views.performance_benchmark import render as performance_benchmark
+from views.incident_recovery    import render as incident_recovery
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -62,5 +63,6 @@ elif page == "💾 Storage Monitor":       storage_monitor()
 elif page == "📜 Live Logs":             logs_monitor()
 elif page == "🏗 Architecture":          architecture()
 elif page == "📊 Performance Benchmark": performance_benchmark()
+elif page == "🚨 Incident & Recovery Center": incident_recovery()
 
 footer()

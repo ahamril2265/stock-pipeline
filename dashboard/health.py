@@ -32,7 +32,7 @@ POSTGRES_PORT = 5432
 # Generic Port Check
 # ==========================================================
 
-def check_port(host, port, timeout=2):
+def check_port(host, port, timeout=1):
 
     try:
 
@@ -72,7 +72,7 @@ def spark_health():
 
         response = requests.get(
             SPARK_MASTER_UI,
-            timeout=3
+            timeout=1
         )
 
         return response.status_code == 200
@@ -102,7 +102,7 @@ def airflow_health():
 
             response = requests.get(
                 AIRFLOW_URL + endpoint,
-                timeout=3
+                timeout=1
             )
 
             if response.status_code == 200:
@@ -126,7 +126,7 @@ def minio_health():
 
         response = requests.get(
             MINIO_URL + "/minio/health/live",
-            timeout=3
+            timeout=1
         )
 
         return response.status_code == 200
@@ -146,7 +146,7 @@ def schema_registry_health():
 
         response = requests.get(
             SCHEMA_REGISTRY + "/subjects",
-            timeout=3
+            timeout=1
         )
 
         return response.status_code == 200

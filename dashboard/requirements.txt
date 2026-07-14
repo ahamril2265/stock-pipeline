@@ -8,3 +8,4 @@ requests
 kafka-python
 minio
 psycopg2-binary
+docker
